@@ -71,22 +71,7 @@ import org.keycloak.services.Urls;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.messages.Messages;
 
-import javax.ws.rs.Consumes;
-import javax.ws.rs.FormParam;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriInfo;
-import javax.xml.datatype.*;
-import javax.xml.namespace.QName;
+
 import java.io.IOException;
 import java.security.Key;
 import java.security.cert.X509Certificate;
@@ -110,11 +95,32 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.FormParam;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.MultivaluedMap;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.core.UriInfo;
+
 import java.net.URI;
 import java.security.cert.CertificateException;
 
-import javax.ws.rs.core.MultivaluedMap;
+
 import javax.xml.crypto.dsig.XMLSignature;
+import javax.xml.datatype.DatatypeConfigurationException;
+import javax.xml.datatype.DatatypeConstants;
+import javax.xml.datatype.DatatypeFactory;
+import javax.xml.datatype.XMLGregorianCalendar;
+import javax.xml.namespace.QName;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -441,7 +447,7 @@ public class SpidSAMLEndpoint {
 
                 if (assertionIsEncrypted) {
                     // This methods writes the parsed and decrypted assertion back on the responseType parameter:
-                    assertionElement = AssertionUtil.decryptAssertion(holder, responseType, keys.getPrivateKey());
+                    assertionElement = AssertionUtil.decryptAssertion(responseType, keys.getPrivateKey());
                 } else {
                     /* We verify the assertion using original document to handle cases where the IdP
                     includes whitespace and/or newlines inside tags. */
@@ -497,7 +503,6 @@ public class SpidSAMLEndpoint {
                     return ErrorPage.error(session, authSession, Response.Status.BAD_REQUEST, Messages.INVALID_REQUESTER);
                 }
 
-                //Map<String, String> notes = new HashMap<>();
                 BrokeredIdentityContext identity = new BrokeredIdentityContext(principal);
                 identity.getContextData().put(SAML_LOGIN_RESPONSE, responseType);
                 identity.getContextData().put(SAML_ASSERTION, assertion);
@@ -586,7 +591,8 @@ public class SpidSAMLEndpoint {
          */
         private AuthenticationSessionModel samlIdpInitiatedSSO(final String clientUrlName) {
             event.event(EventType.LOGIN);
-            CacheControlUtil.noBackButtonCacheControlHeader();
+            CacheControlUtil.noBackButtonCacheControlHeader(session);
+
             Optional<ClientModel> oClient = SpidSAMLEndpoint.this.session.clients()
                 .searchClientsByAttributes(realm, Collections.singletonMap(SamlProtocol.SAML_IDP_INITIATED_SSO_URL_NAME, clientUrlName), 0, 1)
                 .findFirst();
@@ -598,8 +604,10 @@ public class SpidSAMLEndpoint {
             }
 
             LoginProtocolFactory factory = (LoginProtocolFactory) session.getKeycloakSessionFactory().getProviderFactory(LoginProtocol.class, SamlProtocol.LOGIN_PROTOCOL);
-            SamlService samlService = (SamlService) factory.createProtocolEndpoint(SpidSAMLEndpoint.this.realm, event);
+            
+            SamlService samlService = (SamlService) factory.createProtocolEndpoint(session, event);
             ResteasyProviderFactory.getInstance().injectProperties(samlService);
+
             AuthenticationSessionModel authSession = samlService.getOrCreateLoginSessionForIdpInitiatedSso(session, SpidSAMLEndpoint.this.realm, oClient.get(), null);
             if (authSession == null) {
                 event.error(Errors.INVALID_REDIRECT_URI);
@@ -691,7 +699,6 @@ public class SpidSAMLEndpoint {
                 // todo need to check that it is actually a LogoutResponse
                 return handleLogoutResponse(holder, statusResponse, relayState);
             }
-            //throw new RuntimeException("Unknown response type");
 
         }
 

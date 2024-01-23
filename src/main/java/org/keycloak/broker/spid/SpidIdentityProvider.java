@@ -35,6 +35,8 @@ import org.keycloak.dom.saml.v2.assertion.NameIDType;
 import org.keycloak.dom.saml.v2.assertion.SubjectType;
 import org.keycloak.dom.saml.v2.metadata.AttributeConsumingServiceType;
 import org.keycloak.dom.saml.v2.metadata.EntityDescriptorType;
+import org.keycloak.dom.saml.v2.metadata.KeyDescriptorType;
+import org.keycloak.dom.saml.v2.metadata.KeyTypes;
 import org.keycloak.dom.saml.v2.metadata.LocalizedNameType;
 import org.keycloak.dom.saml.v2.protocol.AuthnRequestType;
 import org.keycloak.dom.saml.v2.protocol.LogoutRequestType;
@@ -78,10 +80,11 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriInfo;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.core.UriInfo;
+
 import javax.xml.crypto.dsig.CanonicalizationMethod;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.stream.XMLStreamWriter;
@@ -386,8 +389,8 @@ public class SpidIdentityProvider extends AbstractIdentityProvider<SpidIdentityP
             int attributeConsumingServiceIndex = getConfig().getAttributeConsumingServiceIndex() != null ? getConfig().getAttributeConsumingServiceIndex(): 1;
             String attributeConsumingServiceName = getConfig().getAttributeConsumingServiceName();
 
-            List<Element> signingKeys = new LinkedList<>();
-            List<Element> encryptionKeys = new LinkedList<>();
+            List<KeyDescriptorType> signingKeys = new LinkedList<>();
+            List<KeyDescriptorType> encryptionKeys = new LinkedList<>();
 
             session.keys().getKeysStream(realm, KeyUse.SIG, Algorithm.RS256)
                     .filter(Objects::nonNull)
@@ -397,10 +400,11 @@ public class SpidIdentityProvider extends AbstractIdentityProvider<SpidIdentityP
                         try {
                             Element element = SPMetadataDescriptor
                                     .buildKeyInfoElement(key.getKid(), PemUtils.encodeCertificate(key.getCertificate()));
-                            signingKeys.add(element);
+                            
+                            signingKeys.add(asSigningKeyDescriptor(element));
 
                             if (key.getStatus() == KeyStatus.ACTIVE) {
-                                encryptionKeys.add(element);
+                                encryptionKeys.add(asEncryptionKeyDescriptor(element));
                             }
                         } catch (ParserConfigurationException e) {
                             logger.warn("Failed to export SAML SP Metadata!", e);
@@ -412,8 +416,9 @@ public class SpidIdentityProvider extends AbstractIdentityProvider<SpidIdentityP
             StringWriter sw = new StringWriter();
             XMLStreamWriter writer = StaxUtil.getXMLStreamWriter(sw);
             SAMLMetadataWriter metadataWriter = new SAMLMetadataWriter(writer);
+            
 
-            EntityDescriptorType entityDescriptor = SPMetadataDescriptor.buildSPdescriptor(
+            EntityDescriptorType entityDescriptor = SPMetadataDescriptor.buildSPDescriptor(
                 authnBinding, authnBinding, endpoint, endpoint,
                 wantAuthnRequestsSigned, wantAssertionsSigned, wantAssertionsEncrypted,
                 entityId, nameIDPolicyFormat, signingKeys, encryptionKeys);
@@ -484,6 +489,20 @@ public class SpidIdentityProvider extends AbstractIdentityProvider<SpidIdentityP
             logger.warn("Failed to export SAML SP Metadata!", e);
             throw new RuntimeException(e);
         }
+    }
+
+    private static KeyDescriptorType asSigningKeyDescriptor(Element value){
+        KeyDescriptorType result = new KeyDescriptorType();
+        result.setKeyInfo(value);
+        result.setUse(KeyTypes.SIGNING);
+        return result;
+    }
+
+    private static KeyDescriptorType asEncryptionKeyDescriptor(Element value){
+        KeyDescriptorType result = new KeyDescriptorType();
+        result.setKeyInfo(value);
+        result.setUse(KeyTypes.ENCRYPTION);
+        return result;
     }
 
     public SignatureAlgorithm getSignatureAlgorithm() {

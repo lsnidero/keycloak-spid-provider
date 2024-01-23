@@ -1,14 +1,14 @@
 # keycloak-spid-provider
 
-Italian SPID authentication provider for Keycloak v.18.0.3+ (https://www.keycloak.org/)
+Italian SPID authentication provider for Keycloak v.22.0+ (https://www.keycloak.org/)
 
 This guide describe the steps required to successfully integrate a Keycloak environment with the SPID federation.
 
 ## Prerequisites
 
-- Keycloak full-working installation (version *18.0.3+*): the following instructions expect an environment variable named **$KC_HOME** to be set to the root directory of the Keycloak instance
+- Keycloak full-working installation (version *22.0+*): the following instructions expect an environment variable named **$KC_HOME** to be set to the root directory of the Keycloak instance
 - a recent Docker (or podman) installation
-- JDK 8+
+- JDK 17
 - Git
 - Maven
 
@@ -32,21 +32,25 @@ The instructions consider a *standalone* installation but are applicable to *man
 
 Shutdown the Keycloak server.
 
-Copy the jar file into Keycloak `deployments` directory.
+Copy the jar file into Keycloak `providers` directory.
 
 ```shell
-$ cp target/spid-provider.jar $KC_HOME/standalone/deployments/
+$ cp target/spid-provider.jar $KC_HOME/providers/
 ```
 
 > **Note**
->
+> _XXX_
 > For developing purposes the wildfly maven plugin has been included. Please, remember to update the wildfly port config section in the file pom.xml while developing to use the plugin.
 > 
-> Each time you copy the jar file in the `deployments` directory, Keycloak automatically deploys it at the bootstrap. Nevertheless it may happen that the previous version of the same deployment doesn't get overridden.
+> Each time you copy the jar file in the `providers` directory, Keycloak automatically deploys it at the bootstrap. Nevertheless it may happen that the previous version of the same deployment doesn't get overridden.
 > 
 > It is recommended to cleanup any existing installed deployment in $KC_HOME/standalone/data/content/ related to the same jar module, before restarting Keycloak.
 
 Copy the custom theme (`keycloak-spid-only`) into Keycloak `themes` directory in order to enable the standard SPID login button in the login page.
+
+```shell
+$ ${KC_HOME}/bin/kc.sh build
+```
 
 ```shell
 $ cp -r theme/keycloak-spid-only $KC_HOME/themes
@@ -63,7 +67,7 @@ Use this hostname (e.g. `spidsp`) to connect to the Keycloak console, also while
 Start the Keycloak server:
 
 ```shell
-$ $KC_HOME/bin/standalone.sh -b 0.0.0.0 -Djboss.socket.binding.port-offset=2
+$ ${KC_HOME}/bin/kc.sh start-dev
 ```
 
 The bind address is set to *0.0.0.0* to listen on any interface, in order to relax any network configuration issue.
@@ -187,10 +191,10 @@ This step is required because we want that if a user logs in with different iden
 However, even if the username is the same, Keycloak will trigger by default an "Existing Account Verification" step with link confirmation: since this is not desirable because we trust the information from SPID IdPs, we define a new *First Broker Login* Authentication Flow to automatically set the existing user.
 
 1. In the Keycloak admin console, select the *Authentication* item from the left menu;
-2. In the *Flows* tab, select *First Broker Login* and then click *Copy*;
+2. In the *Flows* tab, select *First Broker Login* and then click *Duplicate*; 
 3. Set the name of the new flow to *First Broker Login SPID*;
 4. In the newly created *First Broker Login SPID* set the *Requirement* column radio button of the *Review Profile (review profile config)* execution to *DISABLED*. This makes sure that at the first successful login the user will not be prompted to confirm his email address;
-5. Search for the *First Broker Login SPID Handle Existing Account* hierarchy entry and click on the *Actions* command on the right, then select *Add Execution*;
+5. Search for the *First Broker Login SPID Handle Existing Account* hierarchy entry and click on the *Actions* command on the right, then select *Add Step*; 
 5. Choose the provider *Automatically Set Existing User* and click *Save*;
 6. With the up/down arrows, move the new execution above the *Confirm Link Existing Account* entry;
 7. Set the *Requirement* column radio button of the *Automatically Set Existing User* execution to *Required*
@@ -203,6 +207,8 @@ If you need to configure all the current (May 2023) Italian SPID providers you c
 **WARNING**: after importing the template you need to configure the identity provider mappers following [this paragraph](#configure-identity-provider-mappers) for *every* provider imported.
 
 ### Identity Provider configuration
+
+**XXX** mi chiede client id e clien secret obbligatori (ho messo il nome del realm my-spid)
 
 1. Select the *Identity Providers* item from the left menu, click on *Add provider*, then select *SPID*;
 2. In the *Add Identity Provider* page, scroll to the bottom and set the *Import from URL* field to the provider metadata url endpoint (if the import from URL does not work, use wget to download the xml file and import it as file):
