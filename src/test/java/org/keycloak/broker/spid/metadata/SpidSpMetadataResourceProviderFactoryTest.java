@@ -16,7 +16,7 @@ class SpidSpMetadataResourceProviderFactoryTest {
     @Test
     void testCreate() {
         RealmResourceProvider actualRealmResourceProvider = factory.create(keycloakSession());
-        assertInstanceOf(SpidSpMetadataResourceProviderTest.class, actualRealmResourceProvider);
+        assertInstanceOf(SpidSpMetadataResourceProvider.class, actualRealmResourceProvider);
     }
 
     @Test
