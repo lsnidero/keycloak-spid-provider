@@ -26,6 +26,9 @@ import org.keycloak.protocol.saml.SamlPrincipalType;
 import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.common.util.XmlKeyInfoKeyNameTransformer;
 
+/**
+ * @author Pedro Igor
+ */
 public class SpidIdentityProviderConfig extends IdentityProviderModel {
 
     public static final XmlKeyInfoKeyNameTransformer DEFAULT_XML_KEY_INFO_KEY_NAME_TRANSFORMER = XmlKeyInfoKeyNameTransformer.NONE;
@@ -41,6 +44,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     public static final String POST_BINDING_LOGOUT = "postBindingLogout";
     public static final String POST_BINDING_RESPONSE = "postBindingResponse";
     public static final String SIGNATURE_ALGORITHM = "signatureAlgorithm";
+    public static final String ENCRYPTION_ALGORITHM = "encryptionAlgorithm";
     public static final String SIGNING_CERTIFICATE_KEY = "signingCertificate";
     public static final String SINGLE_LOGOUT_SERVICE_URL = "singleLogoutServiceUrl";
     public static final String SINGLE_SIGN_ON_SERVICE_URL = "singleSignOnServiceUrl";
@@ -51,7 +55,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     public static final String WANT_ASSERTIONS_SIGNED = "wantAssertionsSigned";
     public static final String WANT_AUTHN_REQUESTS_SIGNED = "wantAuthnRequestsSigned";
     public static final String XML_SIG_KEY_INFO_KEY_NAME_TRANSFORMER = "xmlSigKeyInfoKeyNameTransformer";
-    public static final String ENABLED_FROM_METADATA = "enabledFromMetadata";
+    public static final String ENABLED_FROM_METADATA  = "enabledFromMetadata";
     public static final String AUTHN_CONTEXT_COMPARISON_TYPE = "authnContextComparisonType";
     public static final String AUTHN_CONTEXT_CLASS_REFS = "authnContextClassRefs";
     public static final String AUTHN_CONTEXT_DECL_REFS = "authnContextDeclRefs";
@@ -148,7 +152,6 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
      * @deprecated Prefer {@link #getSigningCertificates()}}
      * @param signingCertificate
      */
-    @Deprecated
     public String getSigningCertificate() {
         return getConfig().get(SIGNING_CERTIFICATE_KEY);
     }
@@ -157,7 +160,6 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
      * @deprecated Prefer {@link #addSigningCertificate(String)}}
      * @param signingCertificate
      */
-    @Deprecated
     public void setSigningCertificate(String signingCertificate) {
         getConfig().put(SIGNING_CERTIFICATE_KEY, signingCertificate);
     }
@@ -168,8 +170,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
             getConfig().put(SIGNING_CERTIFICATE_KEY, signingCertificate);
         } else {
             // Note that "," is not coding character per PEM format specification:
-            // see https://tools.ietf.org/html/rfc1421, section 4.3.2.4 Step 4: Printable
-            // Encoding
+            // see https://tools.ietf.org/html/rfc1421, section 4.3.2.4 Step 4: Printable Encoding
             getConfig().put(SIGNING_CERTIFICATE_KEY, crt + "," + signingCertificate);
         }
     }
@@ -177,11 +178,10 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     public String[] getSigningCertificates() {
         String crt = getConfig().get(SIGNING_CERTIFICATE_KEY);
         if (crt == null || crt.isEmpty()) {
-            return new String[] {};
+            return new String[] { };
         }
         // Note that "," is not coding character per PEM format specification:
-        // see https://tools.ietf.org/html/rfc1421, section 4.3.2.4 Step 4: Printable
-        // Encoding
+        // see https://tools.ietf.org/html/rfc1421, section 4.3.2.4 Step 4: Printable Encoding
         return crt.split(",");
     }
 
@@ -233,6 +233,14 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
         getConfig().put(SIGNATURE_ALGORITHM, signatureAlgorithm);
     }
 
+    public String getEncryptionAlgorithm() {
+        return getConfig().get(ENCRYPTION_ALGORITHM);
+    }
+
+    public void setEncryptionAlgorithm(String encryptionAlgorithm) {
+        getConfig().put(ENCRYPTION_ALGORITHM, encryptionAlgorithm);
+    }
+
     public String getEncryptionPublicKey() {
         return getConfig().get(ENCRYPTION_PUBLIC_KEY);
     }
@@ -260,8 +268,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     public boolean isPostBindingLogout() {
         String postBindingLogout = getConfig().get(POST_BINDING_LOGOUT);
         if (postBindingLogout == null) {
-            // To maintain unchanged behavior when adding this field, we set the inital
-            // value to equal that
+            // To maintain unchanged behavior when adding this field, we set the inital value to equal that
             // of the binding for the response:
             return isPostBindingResponse();
         }
@@ -282,20 +289,17 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
 
     /**
      * Always returns non-{@code null} result.
-     * 
-     * @return Configured ransformer of
-     *         {@link #DEFAULT_XML_KEY_INFO_KEY_NAME_TRANSFORMER} if not set.
+     * @return Configured ransformer of {@link #DEFAULT_XML_KEY_INFO_KEY_NAME_TRANSFORMER} if not set.
      */
     public XmlKeyInfoKeyNameTransformer getXmlSigKeyInfoKeyNameTransformer() {
-        return XmlKeyInfoKeyNameTransformer.from(getConfig().get(XML_SIG_KEY_INFO_KEY_NAME_TRANSFORMER),
-                DEFAULT_XML_KEY_INFO_KEY_NAME_TRANSFORMER);
+        return XmlKeyInfoKeyNameTransformer.from(getConfig().get(XML_SIG_KEY_INFO_KEY_NAME_TRANSFORMER), DEFAULT_XML_KEY_INFO_KEY_NAME_TRANSFORMER);
     }
 
     public void setXmlSigKeyInfoKeyNameTransformer(XmlKeyInfoKeyNameTransformer xmlSigKeyInfoKeyNameTransformer) {
         getConfig().put(XML_SIG_KEY_INFO_KEY_NAME_TRANSFORMER,
-                xmlSigKeyInfoKeyNameTransformer == null
-                        ? null
-                        : xmlSigKeyInfoKeyNameTransformer.name());
+          xmlSigKeyInfoKeyNameTransformer == null
+            ? null
+            : xmlSigKeyInfoKeyNameTransformer.name());
     }
 
     public int getAllowedClockSkew() {
@@ -328,9 +332,9 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
 
     public void setPrincipalType(SamlPrincipalType principalType) {
         getConfig().put(PRINCIPAL_TYPE,
-                principalType == null
-                        ? null
-                        : principalType.name());
+            principalType == null
+                ? null
+                : principalType.name());
     }
 
     public String getPrincipalAttribute() {
@@ -342,16 +346,15 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     }
 
     public boolean isEnabledFromMetadata() {
-        return Boolean.valueOf(getConfig().get(ENABLED_FROM_METADATA));
+        return Boolean.valueOf(getConfig().get(ENABLED_FROM_METADATA ));
     }
 
     public void setEnabledFromMetadata(boolean enabled) {
-        getConfig().put(ENABLED_FROM_METADATA, String.valueOf(enabled));
+        getConfig().put(ENABLED_FROM_METADATA , String.valueOf(enabled));
     }
 
     public AuthnContextComparisonType getAuthnContextComparisonType() {
-        return AuthnContextComparisonType.fromValue(
-                getConfig().getOrDefault(AUTHN_CONTEXT_COMPARISON_TYPE, AuthnContextComparisonType.EXACT.value()));
+        return AuthnContextComparisonType.fromValue(getConfig().getOrDefault(AUTHN_CONTEXT_COMPARISON_TYPE, AuthnContextComparisonType.EXACT.value()));
     }
 
     public void setAuthnContextComparisonType(AuthnContextComparisonType authnContextComparisonType) {
@@ -381,7 +384,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     public void setSignSpMetadata(boolean signSpMetadata) {
         getConfig().put(SIGN_SP_METADATA, String.valueOf(signSpMetadata));
     }
-
+    
     public boolean isAllowCreate() {
         return Boolean.valueOf(getConfig().get(ALLOW_CREATE));
     }
@@ -452,13 +455,10 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
 
         checkUrl(sslRequired, getSingleLogoutServiceUrl(), SINGLE_LOGOUT_SERVICE_URL);
         checkUrl(sslRequired, getSingleSignOnServiceUrl(), SINGLE_SIGN_ON_SERVICE_URL);
-        // transient name id format is not accepted together with principaltype
-        // SubjectnameId
-        if (JBossSAMLURIConstants.NAMEID_FORMAT_TRANSIENT.get().equals(getNameIDPolicyFormat())
-                && SamlPrincipalType.SUBJECT == getPrincipalType())
-            throw new IllegalArgumentException(
-                    "Can not have Transient NameID Policy Format together with SUBJECT Principal Type");
-
+        //transient name id format is not accepted together with principaltype SubjectnameId
+        if (JBossSAMLURIConstants.NAMEID_FORMAT_TRANSIENT.get().equals(getNameIDPolicyFormat()) && SamlPrincipalType.SUBJECT == getPrincipalType())
+            throw new IllegalArgumentException("Can not have Transient NameID Policy Format together with SUBJECT Principal Type");
+        
     }
 
     public boolean isSpPrivate() {

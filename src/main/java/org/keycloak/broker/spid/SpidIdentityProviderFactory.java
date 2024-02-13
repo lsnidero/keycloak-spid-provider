@@ -16,16 +16,22 @@
  */
 package org.keycloak.broker.spid;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import javax.xml.namespace.QName;
 
+import org.jboss.logging.Logger;
 import org.keycloak.Config.Scope;
 import org.keycloak.broker.provider.AbstractIdentityProviderFactory;
+import org.keycloak.broker.saml.SAMLIdentityProviderFactory;
+import org.keycloak.broker.spid.metadata.SpidSpMetadataResourceProvider;
 import org.keycloak.dom.saml.v2.assertion.AttributeType;
 import org.keycloak.dom.saml.v2.metadata.EndpointType;
 import org.keycloak.dom.saml.v2.metadata.EntitiesDescriptorType;
@@ -35,7 +41,11 @@ import org.keycloak.dom.saml.v2.metadata.KeyDescriptorType;
 import org.keycloak.dom.saml.v2.metadata.KeyTypes;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
+import org.keycloak.provider.ConfiguredProvider;
+import org.keycloak.provider.ProviderConfigProperty;
+import org.keycloak.provider.ProviderConfigurationBuilder;
 import org.keycloak.provider.ServerInfoAwareProviderFactory;
+import org.keycloak.provider.ProviderConfigurationBuilder.ProviderConfigPropertyBuilder;
 import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.common.exceptions.ParsingException;
 import org.keycloak.saml.common.util.DocumentUtil;
@@ -46,7 +56,10 @@ import org.w3c.dom.Element;
 /**
  * @author Pedro Igor
  */
-public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory<SpidIdentityProvider> implements ServerInfoAwareProviderFactory {
+public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory<SpidIdentityProvider>
+        implements ServerInfoAwareProviderFactory {
+
+    protected static final Logger logger = Logger.getLogger(SpidIdentityProviderFactory.class);
 
     public static final String PROVIDER_ID = "spid";
 
@@ -77,7 +90,8 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
             EntityDescriptorType entityType;
 
             if (parsedObject instanceof EntitiesDescriptorType) {
-                entityType = (EntityDescriptorType) ((EntitiesDescriptorType) parsedObject).getEntityDescriptor().get(0);
+                entityType = (EntityDescriptorType) ((EntitiesDescriptorType) parsedObject).getEntityDescriptor()
+                        .get(0);
             } else {
                 entityType = (EntityDescriptorType) parsedObject;
             }
@@ -87,12 +101,13 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
             if (!choiceType.isEmpty()) {
                 IDPSSODescriptorType idpDescriptor = null;
 
-                //Metadata documents can contain multiple Descriptors (See ADFS metadata documents) such as RoleDescriptor, SPSSODescriptor, IDPSSODescriptor.
-                //So we need to loop through to find the IDPSSODescriptor.
-                for(EntityDescriptorType.EDTChoiceType edtChoiceType : entityType.getChoiceType()) {
+                // Metadata documents can contain multiple Descriptors (See ADFS metadata
+                // documents) such as RoleDescriptor, SPSSODescriptor, IDPSSODescriptor.
+                // So we need to loop through to find the IDPSSODescriptor.
+                for (EntityDescriptorType.EDTChoiceType edtChoiceType : entityType.getChoiceType()) {
                     List<EntityDescriptorType.EDTDescriptorChoiceType> descriptors = edtChoiceType.getDescriptors();
 
-                    if(!descriptors.isEmpty() && descriptors.get(0).getIdpDescriptor() != null) {
+                    if (!descriptors.isEmpty() && descriptors.get(0).getIdpDescriptor() != null) {
                         idpDescriptor = descriptors.get(0).getIdpDescriptor();
                     }
                 }
@@ -103,21 +118,25 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
                     boolean postBindingResponse = false;
                     boolean postBindingLogout = false;
                     for (EndpointType endpoint : idpDescriptor.getSingleSignOnService()) {
-                        if (endpoint.getBinding().toString().equals(JBossSAMLURIConstants.SAML_HTTP_POST_BINDING.get())) {
+                        if (endpoint.getBinding().toString()
+                                .equals(JBossSAMLURIConstants.SAML_HTTP_POST_BINDING.get())) {
                             singleSignOnServiceUrl = endpoint.getLocation().toString();
                             postBindingResponse = true;
                             break;
-                        } else if (endpoint.getBinding().toString().equals(JBossSAMLURIConstants.SAML_HTTP_REDIRECT_BINDING.get())){
+                        } else if (endpoint.getBinding().toString()
+                                .equals(JBossSAMLURIConstants.SAML_HTTP_REDIRECT_BINDING.get())) {
                             singleSignOnServiceUrl = endpoint.getLocation().toString();
                         }
                     }
                     String singleLogoutServiceUrl = null;
                     for (EndpointType endpoint : idpDescriptor.getSingleLogoutService()) {
-                        if (postBindingResponse && endpoint.getBinding().toString().equals(JBossSAMLURIConstants.SAML_HTTP_POST_BINDING.get())) {
+                        if (postBindingResponse && endpoint.getBinding().toString()
+                                .equals(JBossSAMLURIConstants.SAML_HTTP_POST_BINDING.get())) {
                             singleLogoutServiceUrl = endpoint.getLocation().toString();
                             postBindingLogout = true;
                             break;
-                        } else if (!postBindingResponse && endpoint.getBinding().toString().equals(JBossSAMLURIConstants.SAML_HTTP_REDIRECT_BINDING.get())){
+                        } else if (!postBindingResponse && endpoint.getBinding().toString()
+                                .equals(JBossSAMLURIConstants.SAML_HTTP_REDIRECT_BINDING.get())) {
                             singleLogoutServiceUrl = endpoint.getLocation().toString();
                             break;
                         }
@@ -144,13 +163,14 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
                     if (keyDescriptor != null) {
                         for (KeyDescriptorType keyDescriptorType : keyDescriptor) {
                             Element keyInfo = keyDescriptorType.getKeyInfo();
-                            Element x509KeyInfo = DocumentUtil.getChildElement(keyInfo, new QName("dsig", "X509Certificate"));
+                            Element x509KeyInfo = DocumentUtil.getChildElement(keyInfo,
+                                    new QName("dsig", "X509Certificate"));
 
                             if (KeyTypes.SIGNING.equals(keyDescriptorType.getUse())) {
                                 samlIdentityProviderConfig.addSigningCertificate(x509KeyInfo.getTextContent());
                             } else if (KeyTypes.ENCRYPTION.equals(keyDescriptorType.getUse())) {
                                 samlIdentityProviderConfig.setEncryptionPublicKey(x509KeyInfo.getTextContent());
-                            } else if (keyDescriptorType.getUse() ==  null) {
+                            } else if (keyDescriptorType.getUse() == null) {
                                 defaultCertificate = x509KeyInfo.getTextContent();
                             }
                         }
@@ -167,19 +187,21 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
                     }
 
                     samlIdentityProviderConfig.setEnabledFromMetadata(entityType.getValidUntil() == null
-                        || entityType.getValidUntil().toGregorianCalendar().getTime().after(new Date(System.currentTimeMillis())));
+                            || entityType.getValidUntil().toGregorianCalendar().getTime()
+                                    .after(new Date(System.currentTimeMillis())));
 
                     // check for hide on login attribute
-                    if (entityType.getExtensions() != null && entityType.getExtensions().getEntityAttributes() != null) {
-                        for (AttributeType attribute : entityType.getExtensions().getEntityAttributes().getAttribute()) {
+                    if (entityType.getExtensions() != null
+                            && entityType.getExtensions().getEntityAttributes() != null) {
+                        for (AttributeType attribute : entityType.getExtensions().getEntityAttributes()
+                                .getAttribute()) {
                             if (MACEDIR_ENTITY_CATEGORY.equals(attribute.getName())
-                                && attribute.getAttributeValue().contains(REFEDS_HIDE_FROM_DISCOVERY)) {
+                                    && attribute.getAttributeValue().contains(REFEDS_HIDE_FROM_DISCOVERY)) {
                                 samlIdentityProviderConfig.setHideOnLogin(true);
                             }
                         }
 
                     }
-
                     return samlIdentityProviderConfig.getConfig();
                 }
             }
@@ -203,7 +225,71 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
     }
 
     @Override
-    public Map<String, String> getOperationalInfo() {
-        return Map.of("spid-provider","Spid Identity provider");
+    public List<ProviderConfigProperty> getConfigMetadata() {
+        logger.info(" --> Config metadata <-- ");
+        super.getConfigMetadata()
+                .forEach(cp -> logger.info(cp.getName() + " " + cp.getLabel() + " " + cp.getHelpText()));
+
+        return ProviderConfigurationBuilder.create()
+                .property()
+                .name("please-give-me")
+                .type(ProviderConfigProperty.TEXT_TYPE)
+                .label("Love")
+                .helpText("I Hate you")
+                .add()
+                .build();
     }
+
+    @Override
+    public List<ProviderConfigProperty> getConfigProperties() {
+
+        logger.info(" --> Config properties <-- ");
+        super.getConfigProperties()
+                .forEach(cp -> logger.info(cp.getName() + " " + cp.getLabel() + " " + cp.getHelpText()));
+
+        Properties props = new Properties();
+        try {
+            props.load(this.getClass().getResourceAsStream("/theme-resources/messages/admin-messages_en.properties"));
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+
+        return ProviderConfigurationBuilder.create()
+                .property()
+                .name("idpEntityId")
+                .type(ProviderConfigProperty.STRING_TYPE)
+                .label(props.getProperty("identity-provider.spid.idpEntityId"))
+                .helpText("Unique ID for the provider")
+                .add()
+                // Email (Billing)
+                .property()
+                .name("idpEntityId")
+                .type(ProviderConfigProperty.STRING_TYPE)
+                .label(props.getProperty("identity-provider.spid.idpEntityId"))
+                .helpText("Unique ID for the provider")
+                .add()
+                .property()
+                .name("identity-provider.spid.is-sp-private")
+                .type(ProviderConfigProperty.BOOLEAN_TYPE)
+                .label(props.getProperty("identity-provider.spid.is-sp-private.tooltip"))
+                .helpText(props.getProperty("identity-provider.spid.is-sp-private.tooltip"))
+                .add()
+                .build();
+        /*
+         * .property()
+         * .label("SAML Config")
+         * .type(ProviderConfigProperty.TEXT_TYPE)
+         * .helpText("SAML SP and external IDP configuration.")
+         * .add()
+         * .build();
+         */
+    }
+
+    @Override
+    public Map<String, String> getOperationalInfo() {
+        Map<String, String> ret = new LinkedHashMap<>();
+        ret.put("theme-name", "my-theme");
+        return ret;
+    }
+
 }

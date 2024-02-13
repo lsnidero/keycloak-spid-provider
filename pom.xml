@@ -112,12 +112,15 @@ http://www.apache.org/licenses/LICENSE-2.0
             <artifactId>keycloak-saml-core</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!--
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-saml-adapter-api-public</artifactId>
-            <version>22.0.5</version>
+            <version></version>
             <scope>provided</scope>
         </dependency>
+        -->
+        
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-server-spi</artifactId>

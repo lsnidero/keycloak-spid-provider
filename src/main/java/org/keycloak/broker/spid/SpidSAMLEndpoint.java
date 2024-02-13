@@ -41,6 +41,7 @@ import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeyManager;
+import org.keycloak.models.KeycloakContext;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserSessionModel;
@@ -70,7 +71,7 @@ import org.keycloak.services.ErrorPage;
 import org.keycloak.services.Urls;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.messages.Messages;
-
+import org.keycloak.services.resources.KeycloakApplication;
 
 import java.io.IOException;
 import java.security.Key;
@@ -122,10 +123,13 @@ import javax.xml.datatype.DatatypeFactory;
 import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.namespace.QName;
 
+import static org.keycloak.utils.LockObjectsForModification.lockUserSessionsForModification;
+
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
+
 public class SpidSAMLEndpoint {
     protected static final Logger logger = Logger.getLogger(SpidSAMLEndpoint.class);
     public static final String SAML_FEDERATED_SESSION_INDEX = "SAML_FEDERATED_SESSION_INDEX";
@@ -141,30 +145,32 @@ public class SpidSAMLEndpoint {
     public static final String ASSERTION_NAMEID_FORMAT = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient";
     public static final String ASSERTION_ISSUER_FORMAT = "urn:oasis:names:tc:SAML:2.0:nameid-format:entity";
 
-    protected RealmModel realm;
+    protected final RealmModel realm;
     protected EventBuilder event;
-    protected SpidIdentityProviderConfig config;
-    protected IdentityProvider.AuthenticationCallback callback;
-    protected SpidIdentityProvider provider;
+    protected final SpidIdentityProviderConfig config;
+    protected final IdentityProvider.AuthenticationCallback callback;
+    protected final SpidIdentityProvider provider;
     private final DestinationValidator destinationValidator;
 
+    private final KeycloakSession session;
 
-    @Context
-    private KeycloakSession session;
+    private final ClientConnection clientConnection;
 
-    @Context
-    private ClientConnection clientConnection;
+    private final HttpHeaders headers;
 
-    @Context
-    private HttpHeaders headers;
+    public static final String ENCRYPTION_DEPRECATED_MODE_PROPERTY = "keycloak.saml.deprecated.encryption";
+    private final boolean DEPRECATED_ENCRYPTION = Boolean.getBoolean(ENCRYPTION_DEPRECATED_MODE_PROPERTY);
 
 
-    public SpidSAMLEndpoint(RealmModel realm, SpidIdentityProvider provider, SpidIdentityProviderConfig config, IdentityProvider.AuthenticationCallback callback, DestinationValidator destinationValidator) {
-        this.realm = realm;
+    public SpidSAMLEndpoint(KeycloakSession session, SpidIdentityProvider provider, SpidIdentityProviderConfig config, IdentityProvider.AuthenticationCallback callback, DestinationValidator destinationValidator) {
+        this.realm = session.getContext().getRealm();
         this.config = config;
         this.callback = callback;
         this.provider = provider;
         this.destinationValidator = destinationValidator;
+        this.session = session;
+        this.clientConnection = session.getContext().getConnection();
+        this.headers = session.getContext().getRequestHeaders();
     }
 
     @GET
@@ -287,10 +293,16 @@ public class SpidSAMLEndpoint {
             // validate destination
             if (isDestinationRequired() &&
                     requestAbstractType.getDestination() == null && containsUnencryptedSignature(holder)) {
-                return getResponse(Errors.MISSING_REQUIRED_DESTINATION, Errors.INVALID_REQUEST, Messages.INVALID_REQUEST);
+                event.event(EventType.IDENTITY_PROVIDER_RESPONSE);
+                event.detail(Details.REASON, Errors.MISSING_REQUIRED_DESTINATION);
+                event.error(Errors.INVALID_REQUEST);
+                return ErrorPage.error(session, null, Response.Status.BAD_REQUEST, Messages.INVALID_REQUEST);
             }
             if (! destinationValidator.validate(getExpectedDestination(config.getAlias(), null), requestAbstractType.getDestination())) {
-                return getResponse(Errors.INVALID_DESTINATION, Errors.INVALID_SAML_RESPONSE, Messages.INVALID_REQUEST);
+                event.event(EventType.IDENTITY_PROVIDER_RESPONSE);
+                event.detail(Details.REASON, Errors.INVALID_DESTINATION);
+                event.error(Errors.INVALID_SAML_RESPONSE);
+                return ErrorPage.error(session, null, Response.Status.BAD_REQUEST, Messages.INVALID_REQUEST);
             }
             if (config.isValidateSignature()) {
                 try {
@@ -330,7 +342,7 @@ public class SpidSAMLEndpoint {
             }  else {
                 for (String sessionIndex : request.getSessionIndex()) {
                     String brokerSessionId = config.getAlias()  + "." + sessionIndex;
-                    UserSessionModel userSession = session.sessions().getUserSessionByBrokerSessionId(realm, brokerSessionId);
+                    UserSessionModel userSession = lockUserSessionsForModification(session, () -> session.sessions().getUserSessionByBrokerSessionId(realm, brokerSessionId));
                     if (userSession != null) {
                         if (userSession.getState() == UserSessionModel.State.LOGGING_OUT || userSession.getState() == UserSessionModel.State.LOGGED_OUT) {
                             continue;
@@ -443,7 +455,7 @@ public class SpidSAMLEndpoint {
                     return ErrorPage.error(session, authSession, Response.Status.BAD_REQUEST, Messages.INVALID_REQUESTER);
                 }
 
-                Element assertionElement;
+                Element assertionElement = null;
 
                 if (assertionIsEncrypted) {
                     // This methods writes the parsed and decrypted assertion back on the responseType parameter:
@@ -558,7 +570,7 @@ public class SpidSAMLEndpoint {
                 identity.setIdp(provider);
                 if (authn != null && authn.getSessionIndex() != null) {
                     identity.setBrokerSessionId(config.getAlias() + "." + authn.getSessionIndex());
-                }
+                 }
 
 
                 return callback.authenticated(identity);
@@ -594,8 +606,8 @@ public class SpidSAMLEndpoint {
             CacheControlUtil.noBackButtonCacheControlHeader(session);
 
             Optional<ClientModel> oClient = SpidSAMLEndpoint.this.session.clients()
-                .searchClientsByAttributes(realm, Collections.singletonMap(SamlProtocol.SAML_IDP_INITIATED_SSO_URL_NAME, clientUrlName), 0, 1)
-                .findFirst();
+              .searchClientsByAttributes(realm, Collections.singletonMap(SamlProtocol.SAML_IDP_INITIATED_SSO_URL_NAME, clientUrlName), 0, 1)
+              .findFirst();
 
             if (! oClient.isPresent()) {
                 event.error(Errors.CLIENT_NOT_FOUND);
@@ -604,7 +616,6 @@ public class SpidSAMLEndpoint {
             }
 
             LoginProtocolFactory factory = (LoginProtocolFactory) session.getKeycloakSessionFactory().getProviderFactory(LoginProtocol.class, SamlProtocol.LOGIN_PROTOCOL);
-            
             SamlService samlService = (SamlService) factory.createProtocolEndpoint(session, event);
             ResteasyProviderFactory.getInstance().injectProperties(samlService);
 
@@ -621,10 +632,10 @@ public class SpidSAMLEndpoint {
 
         private boolean isSuccessfulSamlResponse(ResponseType responseType) {
             return responseType != null
-                && responseType.getStatus() != null
-                && responseType.getStatus().getStatusCode() != null
-                && responseType.getStatus().getStatusCode().getValue() != null
-                && Objects.equals(responseType.getStatus().getStatusCode().getValue().toString(), JBossSAMLURIConstants.STATUS_SUCCESS.get());
+              && responseType.getStatus() != null
+              && responseType.getStatus().getStatusCode() != null
+              && responseType.getStatus().getStatusCode().getValue() != null
+              && Objects.equals(responseType.getStatus().getStatusCode().getValue().toString(), JBossSAMLURIConstants.STATUS_SUCCESS.get());
         }
 
 
