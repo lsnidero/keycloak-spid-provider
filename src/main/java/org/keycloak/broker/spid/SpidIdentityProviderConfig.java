@@ -18,11 +18,15 @@ package org.keycloak.broker.spid;
 
 import static org.keycloak.common.util.UriUtils.checkUrl;
 
+import java.util.List;
+
 import org.keycloak.common.enums.SslRequired;
 import org.keycloak.dom.saml.v2.protocol.AuthnContextComparisonType;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.protocol.saml.SamlPrincipalType;
+import org.keycloak.provider.ProviderConfigProperty;
+import org.keycloak.provider.ProviderConfigurationBuilder;
 import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.common.util.XmlKeyInfoKeyNameTransformer;
 
@@ -150,7 +154,6 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
 
     /**
      * @deprecated Prefer {@link #getSigningCertificates()}}
-     * @param signingCertificate
      */
     public String getSigningCertificate() {
         return getConfig().get(SIGNING_CERTIFICATE_KEY);
@@ -660,4 +663,160 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     public void setBillingAnagraficaCodiceEORI(String billingAnagraficaCodiceEORI) {
         getConfig().put(BILLING_ANAGRAFICA_CODICE_EORI, billingAnagraficaCodiceEORI);
     }
+
+
+    public static List<ProviderConfigProperty> getConfigProperties() {
+                return ProviderConfigurationBuilder.create()
+        .property()
+        .name(ORGANIZATION_NAMES)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.organization-names")
+        .helpText("identity-provider.spid.organization-names.tooltip")
+        .add()
+
+        /*
+        .property()
+        .name(IDP_ENTITY_ID)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.idpEntityId")
+        .helpText("identity-provider.spid.idpEntityId.tooltip")
+        .add()
+         */
+
+        .property()
+        .name(ORGANIZATION_DISPLAY_NAMES)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.organization-display-names")
+        .helpText("identity-provider.spid.organization-display-names.tooltip")
+        .add()
+
+        .property()
+        .name(ORGANIZATION_URLS)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.organization-urls")
+        .helpText("identity-provider.spid.organization-urls.tooltip")
+        .add()
+
+        .property()
+        .name(OTHER_CONTACT_SP_PRIVATE)
+        .type(ProviderConfigProperty.BOOLEAN_TYPE)
+        .label("identity-provider.spid.is-sp-private")
+        .helpText("identity-provider.spid.is-sp-private.tooltip")
+        .add()
+
+        .property()
+        .name(OTHER_CONTACT_IPA_CODE)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.ipaCode")
+        .helpText("identity-provider.spid.ipaCode.tooltip")
+        .add()
+
+        .property()
+        .name(OTHER_CONTACT_VAT_NUMBER)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.vatNumber")
+        .helpText("identity-provider.spid.vatNumber.tooltip")
+        .add()
+
+        .property()
+        .name(OTHER_CONTACT_FISCAL_CODE)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.fiscalCode")
+        .helpText("identity-provider.spid.fiscalCode.tooltip")
+        .add()
+
+        .property()
+        .name(OTHER_CONTACT_COMPANY)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.contactCompany.other")
+        .helpText("identity-provider.spid.contactCompany.other.tooltip")
+        .add()
+
+        .property()
+        .name(OTHER_CONTACT_PHONE)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.contactPhone.other")
+        .helpText("identity-provider.spid.contactPhone.other.tooltip")
+        .add()
+
+        .property()
+        .name(OTHER_CONTACT_EMAIL)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.contactEmail.other")
+        .helpText("identity-provider.spid.contactEmail.other.tooltip")
+        .add()
+
+        .property()
+        .name(BILLING_CONTACT_COMPANY)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.contactCompany.billing")
+        .helpText("identity-provider.spid.contactCompany.billing.tooltip")
+        .add()
+
+        .property()
+        .name(BILLING_CONTACT_PHONE)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.contactPhone.billing")
+        .helpText("identity-provider.spid.contactPhone.billing.tooltip")
+        .add()
+
+        .property()
+        .name(BILLING_CONTACT_EMAIL)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.contactEmail.billing")
+        .helpText("identity-provider.spid.contactEmail.billing.tooltip")
+        .add()
+
+        .property()
+        .name(BILLING_CODICE_FISCALE)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.cessionarioCommittente.codiceFiscale.billing")
+        .helpText("identity-provider.spid.cessionarioCommittente.codiceFiscale.billing.tooltip")
+        .add()
+
+        .property()
+        .name(BILLING_SEDE_INDIRIZZO)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.cessionarioCommittente.sede")
+        .helpText("identity-provider.spid.cessionarioCommittente.sede.tooltip")
+        .add()
+
+        .property()
+        .name(BILLING_ID_CODICE)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.cessionarioCommittente.idCodice.billing")
+        .helpText("identity-provider.spid.cessionarioCommittente.idCodice.billing.tooltip")
+        .add()
+
+        .property()
+        .name(BILLING_ID_PAESE)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.cessionarioCommittente.idPaese.billing")
+        .helpText("identity-provider.spid.cessionarioCommittente.idPaese.billing.tooltip")
+        .add()
+
+        .property()
+        .name(BILLING_SEDE_CAP)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.cessionarioCommittente.sedeCap.billing")
+        .helpText("identity-provider.spid.cessionarioCommittente.sedeCap.billing.tooltip")
+        .add()
+
+        .property()
+        .name(BILLING_SEDE_PROVINCIA)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.cessionarioCommittente.sedeProvincia.billing")
+        .helpText("identity-provider.spid.cessionarioCommittente.sedeProvincia.billing.tooltip")
+        .add()
+
+        .property()
+        .name(BILLING_SEDE_NAZIONE)
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .label("identity-provider.spid.cessionarioCommittente.sedeComune.billing")
+        .helpText("identity-provider.spid.cessionarioCommittente.sedeComune.billing.tooltip")
+        .add()
+
+        .build();
+    }
+    
 }

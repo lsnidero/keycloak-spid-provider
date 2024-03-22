@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 import javax.xml.namespace.QName;
 
@@ -57,11 +58,11 @@ import org.w3c.dom.Element;
  * @author Pedro Igor
  */
 public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory<SpidIdentityProvider>
-        implements ServerInfoAwareProviderFactory {
+        implements ConfiguredProvider {
 
     protected static final Logger logger = Logger.getLogger(SpidIdentityProviderFactory.class);
 
-    public static final String PROVIDER_ID = "spid";
+    public static final String PROVIDER_ID = SAMLIdentityProviderFactory.PROVIDER_ID + "-spid";
 
     private static final String MACEDIR_ENTITY_CATEGORY = "http://macedir.org/entity-category";
     private static final String REFEDS_HIDE_FROM_DISCOVERY = "http://refeds.org/category/hide-from-discovery";
@@ -225,71 +226,24 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
     }
 
     @Override
-    public List<ProviderConfigProperty> getConfigMetadata() {
-        logger.info(" --> Config metadata <-- ");
-        super.getConfigMetadata()
-                .forEach(cp -> logger.info(cp.getName() + " " + cp.getLabel() + " " + cp.getHelpText()));
-
-        return ProviderConfigurationBuilder.create()
-                .property()
-                .name("please-give-me")
-                .type(ProviderConfigProperty.TEXT_TYPE)
-                .label("Love")
-                .helpText("I Hate you")
-                .add()
-                .build();
-    }
-
-    @Override
     public List<ProviderConfigProperty> getConfigProperties() {
-
-        logger.info(" --> Config properties <-- ");
-        super.getConfigProperties()
-                .forEach(cp -> logger.info(cp.getName() + " " + cp.getLabel() + " " + cp.getHelpText()));
-
-        Properties props = new Properties();
+        /*
+        final Properties props = new Properties();
         try {
             props.load(this.getClass().getResourceAsStream("/theme-resources/messages/admin-messages_en.properties"));
         } catch (IOException ex) {
             ex.printStackTrace();
         }
 
-        return ProviderConfigurationBuilder.create()
-                .property()
-                .name("idpEntityId")
-                .type(ProviderConfigProperty.STRING_TYPE)
-                .label(props.getProperty("identity-provider.spid.idpEntityId"))
-                .helpText("Unique ID for the provider")
-                .add()
-                // Email (Billing)
-                .property()
-                .name("idpEntityId")
-                .type(ProviderConfigProperty.STRING_TYPE)
-                .label(props.getProperty("identity-provider.spid.idpEntityId"))
-                .helpText("Unique ID for the provider")
-                .add()
-                .property()
-                .name("identity-provider.spid.is-sp-private")
-                .type(ProviderConfigProperty.BOOLEAN_TYPE)
-                .label(props.getProperty("identity-provider.spid.is-sp-private.tooltip"))
-                .helpText(props.getProperty("identity-provider.spid.is-sp-private.tooltip"))
-                .add()
-                .build();
-        /*
-         * .property()
-         * .label("SAML Config")
-         * .type(ProviderConfigProperty.TEXT_TYPE)
-         * .helpText("SAML SP and external IDP configuration.")
-         * .add()
-         * .build();
-         */
+        return SpidIdentityProviderConfig.getConfigProperties()
+                .stream()
+                .map(p -> new ProviderConfigProperty(p.getName(), props.getProperty(p.getLabel()),
+                        props.getProperty(p.getHelpText()), p.getType(), p.getDefaultValue()))
+                .collect(Collectors.toList());
     }
 
-    @Override
-    public Map<String, String> getOperationalInfo() {
-        Map<String, String> ret = new LinkedHashMap<>();
-        ret.put("theme-name", "my-theme");
-        return ret;
+         */
+        return SpidIdentityProviderConfig.getConfigProperties();
     }
 
 }

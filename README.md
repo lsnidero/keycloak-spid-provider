@@ -90,6 +90,14 @@ The SPID custom provider has been correctly deployed and to verify that the modu
 
 ## Repeated deployments and cache
 
+```bash
+./bin/kc.sh start-dev 
+```
+
+No cache on themes
+
+
+
 In order to deploy a modified version of the jar file, you can just repeat the deployment commands described above. However sometimes Keycloak caches don't get flushed when a new deployment occurs: in that case a quick workaround is to edit `$KC_HOME/standalone/configuration/standalone.xml` file and temporarily disable the theme/templates caching replacing the following xml block:
 
 ```xml
@@ -358,3 +366,15 @@ Now you can try to login using a configured client. For example you could use th
 The main java code and some html/js/css snippets are taken/forked from or inspired by the same custom provider, developed by *Luca Leonardo Scorcia*, available at [https://github.com/italia/spid-keycloak-provider](https://github.com/italia/spid-keycloak-provider).
 
 This project is released under the Apache License 2.0, same as the main Keycloak package.
+
+```json
+{
+  "config": {
+    "otherContactCompany": "Example S.p.a.",
+    "otherContactPhone": "+39123456789",
+    "otherContactEmail": "info@example.it",
+    "otherContactIpaCode": "ipa_code",
+    "otherContactIsSpPrivate": "false"
+  }
+}
+```

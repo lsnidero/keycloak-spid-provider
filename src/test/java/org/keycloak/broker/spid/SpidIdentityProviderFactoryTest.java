@@ -157,7 +157,7 @@ class SpidIdentityProviderFactoryTest {
 
         @Test
         void testGetId() {
-                String expected = "spid";
+                String expected = "saml-spid";
                 assertEquals(expected, factory.getId());
         }
 
