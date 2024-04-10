@@ -19,6 +19,8 @@ IDP=(
 "spiditaliaid"
 "posteid"
 "teamsystemid"
+"test/privatespid"
+"test/spidtestidp"
 )
 
 # Counter for server calls
@@ -48,21 +50,23 @@ read -n1 -r -p "Press any key to continue..." key
 
 for idp in "${IDP[@]}";
 do
+    # sanitize idp alias
+    idp_alias=${idp/test\//}
     if [ "${CLEAN_UP}" == true ]; then
-        echo "Deleting Identity Provider with alias ${idp}"    
-        ${KCADM} delete identity-provider/instances/${idp} -r ${KTREALM}
+        echo "Deleting Identity Provider with alias ${idp_alias}"
+        ${KCADM} delete identity-provider/instances/${idp_alias} -r ${KTREALM}
         (( ADMIN_CALLS++ ))
         continue
     fi
-    echo "Creating Identity Provider with alias ${idp}"
+    echo "Creating Identity Provider with alias ${idp_alias}"
     ${KCADM} create identity-provider/instances -r ${KTREALM} -f resources/idp/${idp}.json
     (( ADMIN_CALLS++ ))
-    echo "Creating custom mappers for provider ${idp}"
+    echo "Creating custom mappers for provider ${idp_alias}"
     for file in resources/mappers/*.json; 
     do
-        dest_file="/tmp/${idp}-${file##*/}"
-        cat ${file} | sed "s/CHANGE-IT/${idp}/" > ${dest_file}
-        ${KCADM} create identity-provider/instances/${idp}/mappers -r ${KTREALM} -f ${dest_file}
+        dest_file="/tmp/${idp_alias}-${file##*/}"
+        cat ${file} | sed "s/CHANGE-IT/${idp_alias}/" > ${dest_file}
+        ${KCADM} create identity-provider/instances/${idp_alias}/mappers -r ${KTREALM} -f ${dest_file}
         (( ADMIN_CALLS++ ))
     done
 done

@@ -155,6 +155,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     /**
      * @deprecated Prefer {@link #getSigningCertificates()}}
      */
+    @Deprecated
     public String getSigningCertificate() {
         return getConfig().get(SIGNING_CERTIFICATE_KEY);
     }
@@ -163,6 +164,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
      * @deprecated Prefer {@link #addSigningCertificate(String)}}
      * @param signingCertificate
      */
+    @Deprecated
     public void setSigningCertificate(String signingCertificate) {
         getConfig().put(SIGNING_CERTIFICATE_KEY, signingCertificate);
     }

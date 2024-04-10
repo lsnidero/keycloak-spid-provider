@@ -26,35 +26,54 @@ $ mvn clean package
 
 After a successful build you will find the `spid-provider.jar` jar file in the `target` directory.
 
-### Deploy into Keycloak
+### Add provider to Keycloak
 
-The instructions consider a *standalone* installation but are applicable to *managed domain* installations as well (changing the target directory names where it is required).
+Shutdown the Keycloak server (if running).
 
-Shutdown the Keycloak server.
-
-Copy the jar file into Keycloak `providers` directory.
+Copy the jar file into Keycloak `providers` directory.  
 
 ```shell
 $ cp target/spid-provider.jar $KC_HOME/providers/
 ```
+Link the provider to the current KeyCloak installation using the `build` option:
 
-> **Note**
-> _XXX_
-> For developing purposes the wildfly maven plugin has been included. Please, remember to update the wildfly port config section in the file pom.xml while developing to use the plugin.
-> 
-> Each time you copy the jar file in the `providers` directory, Keycloak automatically deploys it at the bootstrap. Nevertheless it may happen that the previous version of the same deployment doesn't get overridden.
-> 
-> It is recommended to cleanup any existing installed deployment in $KC_HOME/standalone/data/content/ related to the same jar module, before restarting Keycloak.
+```shell
+$ {KC_HOME}/bin/kc.sh build
+```
+You can check if the provider is installed correctly using the following command:
+
+```shell
+$ {KC_HOME}/bin/kc.sh show-config
+```
+
+You should expect an output similar to this one:
+
+```
+Current Mode: development
+Current Configuration:
+	kc.cache =  local (PersistedConfigSource)
+	kc.config.built =  true (SysPropConfigSource)
+	kc.db =  dev-file (PersistedConfigSource)
+
+... content omitted ...
+
+	kc.provider.file.spid-provider.jar.last-modified =  1712329291489 (PersistedConfigSource)
+
+... content omitted ...
+
+```
+
+
 
 Copy the custom theme (`keycloak-spid-only`) into Keycloak `themes` directory in order to enable the standard SPID login button in the login page.
 
 ```shell
-$ ${KC_HOME}/bin/kc.sh build
-```
-
-```shell
 $ cp -r theme/keycloak-spid-only $KC_HOME/themes
 ```
+
+### Configure host for testing with demo platform 
+
+FIXME: spostare da un'altra parte
 
 Since you probably installed Keycloak on your local host, define a custom hostname (e.g. `spidsp`) for it to refer to that Keycloak instance (the service provider) instead of using `localhost`.
 
@@ -64,7 +83,7 @@ $ echo '127.0.0.1 spidsp' >> /etc/hosts
 
 Use this hostname (e.g. `spidsp`) to connect to the Keycloak console, also while generating the xml metadata file/url.
 
-Start the Keycloak server:
+Start the Keycloak server :
 
 ```shell
 $ ${KC_HOME}/bin/kc.sh start-dev
@@ -72,53 +91,28 @@ $ ${KC_HOME}/bin/kc.sh start-dev
 
 The bind address is set to *0.0.0.0* to listen on any interface, in order to relax any network configuration issue.
 
-Furthermore the `port-offset` value has been set in order to remap ports and avoid any collision with the ports opened by the SPID testing tool (see next sections).
-
 During Keycloak bootstrap you should see log entries like the following:
 
 ```
-10:13:25,178 INFO  [org.jboss.as.server.deployment] (MSC service thread 1-4) WFLYSRV0027: Starting deployment of "spid-provider.jar" (runtime-name: "spid-provider.jar")
+Updating the configuration and installing your custom providers, if any. Please wait.
+2024-04-05 17:56:54,455 INFO  [io.quarkus.deployment.QuarkusAugmentor] (main) Quarkus augmentation completed in 5404ms
+... output omitted ...
+2024-04-05 17:56:59,559 INFO  [io.quarkus] (main) Keycloak 22.0.8.redhat-00001 on JVM (powered by Quarkus 3.2.9.Final-redhat-00002) started in 4.989s. Listening on: http://0.0.0.0:8080
+2024-04-05 17:56:59,560 INFO  [io.quarkus] (main) Profile dev activated. 
+2024-04-05 17:56:59,560 INFO  [io.quarkus] (main) Installed features: [agroal, cdi, hibernate-orm, jdbc-h2, jdbc-mariadb, jdbc-mssql, jdbc-mysql, jdbc-oracle, jdbc-postgresql, keycloak, micrometer, narayana-jta, reactive-routes, resteasy, resteasy-jackson, smallrye-context-propagation, smallrye-health, vertx]
+2024-04-05 17:56:59,563 WARN  [org.keycloak.quarkus.runtime.KeycloakMain] (main) Running the server in development mode. DO NOT use this configuration in production.
 
-...
-10:13:32,178 INFO  [org.keycloak.subsystem.server.extension.KeycloakProviderDeploymentProcessor] (MSC service thread 1-4) Deploying Keycloak provider: spid-provider.jar
-...
-
-10:13:34,044 INFO  [org.jboss.as.server] (ServerService Thread Pool -- 33) WFLYSRV0010: Deployed "spid-provider.jar" (runtime-name : "spid-provider.jar")
 ```
+
+If you need to start KeyCloak listening on another port use the `--http-port <port_number>` command argument.  
 
 The SPID custom provider has been correctly deployed and to verify that the module is correctly available and active, you can open the Keycloak admin console and access the **Identity Providers** section, choose the **Add provider** dropdown and you should find the **SPID** entry.
 
 ## Repeated deployments and cache
 
-```bash
-./bin/kc.sh start-dev 
-```
-
-No cache on themes
+When starting Keycloak with the `start-dev` command line, themes resources are **not** cached. 
 
 
-
-In order to deploy a modified version of the jar file, you can just repeat the deployment commands described above. However sometimes Keycloak caches don't get flushed when a new deployment occurs: in that case a quick workaround is to edit `$KC_HOME/standalone/configuration/standalone.xml` file and temporarily disable the theme/templates caching replacing the following xml block:
-
-```xml
-<theme>
-  <staticMaxAge>2592000</staticMaxAge>
-  <cacheThemes>true</cacheThemes>
-  <cacheTemplates>true</cacheTemplates>
-  <dir>${jboss.home.dir}/themes</dir>
-</theme>
-```
-
-with the following:
-
-```xml
-<theme>
-  <staticMaxAge>-1</staticMaxAge>
-  <cacheThemes>false</cacheThemes>
-  <cacheTemplates>false</cacheTemplates>
-  <dir>${jboss.home.dir}/themes</dir>
-</theme>
-```
 
 Then restart Keycloak and it will reload the new resources from the jar package.
 Make sure you also cleared your browser caches (or use *incognito mode*) when verifying the correct deployment. After the first reload you can turn back on the caches and restart Keycloak again (if required).
@@ -192,23 +186,33 @@ Select the *Realm Settings* item from the left menu, click on *Themes* tab and s
 
 The following instructions can be reused to define all of the Identity Providers supported by SPID.
 
+**TODO**
+Use the script [configure-sh](spid-providers/configure.sh) to create the providers with the mapping information. 
+
+
 ### Setup a custom "First Broker Login" Authentication Flow
 
 This step is required because we want that if a user logs in with different identity providers (even different SPID authorized IDPs), they are all linked to the same Keycloak user account (if already existent, otherwise it gets created).
 
 However, even if the username is the same, Keycloak will trigger by default an "Existing Account Verification" step with link confirmation: since this is not desirable because we trust the information from SPID IdPs, we define a new *First Broker Login* Authentication Flow to automatically set the existing user.
 
-1. In the Keycloak admin console, select the *Authentication* item from the left menu;
-2. In the *Flows* tab, select *First Broker Login* and then click *Duplicate*; 
-3. Set the name of the new flow to *First Broker Login SPID*;
-4. In the newly created *First Broker Login SPID* set the *Requirement* column radio button of the *Review Profile (review profile config)* execution to *DISABLED*. This makes sure that at the first successful login the user will not be prompted to confirm his email address;
-5. Search for the *First Broker Login SPID Handle Existing Account* hierarchy entry and click on the *Actions* command on the right, then select *Add Step*; 
-5. Choose the provider *Automatically Set Existing User* and click *Save*;
-6. With the up/down arrows, move the new execution above the *Confirm Link Existing Account* entry;
-7. Set the *Requirement* column radio button of the *Automatically Set Existing User* execution to *Required*
-8. Set both the *Confirm Link Existing Account* and the *First Broker Login SPID Account Verification Options* radio buttons to *Disabled*.
+ 1. In the Keycloak admin console, select the *Authentication* item from the left menu;
+ 2. In the *Flows* tab, select *First Broker Login* and then click *Duplicate*; 
+ 3. Set the name of the new flow to *First broker login SPID*;
+ 4. In the newly created *First broker login SPID* set the *Requirement* column radio button of the *Review Profile (review profile config)* execution to *DISABLED*. This makes sure that at the first successful login the user will not be prompted to confirm his email address;
+ 5. Search for the *First broker login SPID Handle Existing Account* hierarchy entry and click on the *Add Step* command on the right by pressing the "+" button; 
+ 6. Choose the provider *Automatically Set Existing User* and click *Add*;
+ 7. With the up/down arrows, move the new execution above the *Confirm Link Existing Account* entry and set it to *Required*;
+ 8. Set the *Requirement* column radio button of the *Automatically Set Existing User* execution to *Required*;
+ 9. Set both the *Confirm Link Existing Account* and the *First broker login SPID Account Verification Options* radio buttons to *Disabled*.
 
-![Auth Flow](docs/img/auth_flow.png)
+The result should be something like this:
+
+![Auth Flow](docs/img/auth_flow_22.png)
+
+or this using the graph view:
+
+![Auth Flow as graph](docs/img/auth_flow_22_graph.png)
 
 If you need to configure all the current (May 2023) Italian SPID providers you can import, through the keycloak interface (Manage > import on realm's main menu), [this](docs/template-realm/realm-export.json) already configured realm. 
 
@@ -232,7 +236,7 @@ Fill in the other fields as follows (leave the other fields as set by default).
 - **Alias**: enter a name for the provider (it will be used as an URL component, so DO NOT enter space characters). In order to use the standard SPID Login button for tests, this field must be set to `spidtestidp`, otherwise apply the right changes to the custom theme.
 - **Display Name**: the name of the IDP (it will be the name of the login button on the Keycloak login page)
 - **Trust Email**: set to `ON`
-- **First Login Flow**: select `First Broker Login SPID` (defined in the previous section)
+- **First Login Flow**: select `First broker login SPID` (defined in the previous section)
 - **Sync Mode**: select `force`
 
 
@@ -283,21 +287,21 @@ Set the *User Name attribute*, the *Basic attributes* and, if required, one or m
 #### User Name attribute
 Click on the *Create* button and set the following attributes:
 
-| Name | Mapper Type	| Template | Sync Mode | Target |
-| ---- | ---- | ---- | ---- | ---- |
-| User Name	| SPID Username Template Importer | ${ATTRIBUTE.fiscalNumber} | inherit | LOCAL | 
+| Name      | Mapper Type	                    | Template                  | Sync Mode | Target |
+|-----------|---------------------------------|---------------------------|-----------|--------|
+| User Name | SPID Username Template Importer | ${ATTRIBUTE.fiscalNumber} | inherit   | LOCAL  | 
 
 All SPID users will have their username set to their fiscalNumber (lowercased according to the Keycloak convention).
 
 #### Basic attributes
 First Name and Last Name are required to identify the user and should be always mapped to special Keycloak attributes. Define the following two required mappers:
 
-| Name | Mapper Type | Attribute Name | User Attribute Name | Sync Mode |
-| ---- | ---- | ---- | ---- | ---- |
-| First Name  | SPID Attribute Importer | name         | firstName         | inherit |
-| Last Name   | SPID Attribute Importer | familyName   | lastName          | inherit |
-| Tax Id      | SPID Attribute Importer | fiscalNumber | spid-fiscalNumber | inherit |
-| Email       | SPID Attribute Importer | email        | spid-email        | inherit |
+| Name       | Mapper Type             | Attribute Name | User Attribute Name | Sync Mode |
+|------------|-------------------------|----------------|---------------------|-----------|
+| First Name | SPID Attribute Importer | name           | firstName           | inherit   |
+| Last Name  | SPID Attribute Importer | familyName     | lastName            | inherit   |
+| Tax Id     | SPID Attribute Importer | fiscalNumber   | spid-fiscalNumber   | inherit   |
+| Email      | SPID Attribute Importer | email          | spid-email          | inherit   |
 
 > *NOTE**
 > 
@@ -309,21 +313,21 @@ First Name and Last Name are required to identify the user and should be always 
 
 All of the other SPID attributes are optional and follow the same convention. Refer to the following table as a guide:
 
-| Name | Mapper Type | Attribute Name | User Attribute Name |
-| ---- | ---- | ---- | ---- |
-| SPID Code | SPID Attribute Importer | spidCode | spid-spidCode | 
-| Email | SPID Attribute Importer | email | spid-email |
-| Tax Id | SPID Attribute Importer | fiscalNumber | spid-fiscalNumber |
-| Gender | SPID Attribute Importer | gender | spid-gender |
-| Date of Birth | SPID Attribute Importer | dateOfBirth | spid-dateOfBirth |
-| Place of Birth | SPID Attribute Importer | placeOfBirth | spid-placeOfBirth |
-| County of Birth | SPID Attribute Importer | countyOfBirth | spid-countyOfBirth |
-| Mobile Phone | SPID Attribute Importer | mobilePhone | spid-mobilePhone |
-| Address | SPID Attribute Importer | address | spid-address |
-| Digital Address | SPID Attribute Importer | digitalAddress | spid-digitalAddress |
-| Company Name | SPID Attribute Importer | companyName | spid-companyName |
+| Name            | Mapper Type             | Attribute Name   | User Attribute Name   |
+|-----------------|-------------------------|------------------|-----------------------|
+| SPID Code       | SPID Attribute Importer | spidCode         | spid-spidCode         | 
+| Email           | SPID Attribute Importer | email            | spid-email            |
+| Tax Id          | SPID Attribute Importer | fiscalNumber     | spid-fiscalNumber     |
+| Gender          | SPID Attribute Importer | gender           | spid-gender           |
+| Date of Birth   | SPID Attribute Importer | dateOfBirth      | spid-dateOfBirth      |
+| Place of Birth  | SPID Attribute Importer | placeOfBirth     | spid-placeOfBirth     |
+| County of Birth | SPID Attribute Importer | countyOfBirth    | spid-countyOfBirth    |
+| Mobile Phone    | SPID Attribute Importer | mobilePhone      | spid-mobilePhone      |
+| Address         | SPID Attribute Importer | address          | spid-address          |
+| Digital Address | SPID Attribute Importer | digitalAddress   | spid-digitalAddress   |
+| Company Name    | SPID Attribute Importer | companyName      | spid-companyName      |
 | Company Address | SPID Attribute Importer | registeredOffice | spid-registeredOffice |
-| VAT Number | SPID Attribute Importer | ivaCode | spid-ivaCode |
+| VAT Number      | SPID Attribute Importer | ivaCode          | spid-ivaCode          |
 
 ![Example mandatory mappers](docs/img/example_mandatory_mappers.png)
 
@@ -378,3 +382,5 @@ This project is released under the Apache License 2.0, same as the main Keycloak
   }
 }
 ```
+
+

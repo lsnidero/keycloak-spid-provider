@@ -56,9 +56,8 @@ import java.net.URISyntaxException;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.xml.crypto.dsig.CanonicalizationMethod;
@@ -108,13 +107,13 @@ public class SpidSpMetadataResourceProvider implements RealmResourceProvider {
             List<IdentityProviderModel> lstSpidIdentityProviders = realm.getIdentityProvidersStream()
                     .filter(t -> t.getProviderId().equals(SpidIdentityProviderFactory.PROVIDER_ID) &&
                             t.isEnabled())
-                    .sorted((o1, o2) -> o1.getAlias().compareTo(o2.getAlias()))
-                    .collect(Collectors.toList());
+                    .sorted(this::compareByGuiOrderOrAlias)
+                    .toList();
 
             if (lstSpidIdentityProviders.isEmpty())
                 throw new Exception("No SPID providers found!");
 
-            // Create an instance of the first SPID Identity Provider in alphabetical order
+            // Create an instance of the first SPID Identity Provider in gui or, as a fallback, alphabetical order
             SpidIdentityProviderFactory providerFactory = new SpidIdentityProviderFactory();
             SpidIdentityProvider firstSpidProvider = providerFactory.create(session, lstSpidIdentityProviders.get(0));
 
@@ -323,6 +322,25 @@ public class SpidSpMetadataResourceProvider implements RealmResourceProvider {
         } catch (Exception e) {
             logger.warn("Failed to export SAML SP Metadata!", e);
             throw new RuntimeException(e);
+        }
+    }
+
+    private int compareByGuiOrderOrAlias(IdentityProviderModel id1, IdentityProviderModel id2){
+        String guiOrder1 = id1.getConfig().get("guiOrder");
+        String guiOrder2 = id2.getConfig().get("guiOrder");
+
+        if (guiOrder1 != null && guiOrder2 != null){
+            int o1 = 0;
+            int o2 = 0;
+            try{
+                o1 = Integer.parseInt(guiOrder1);
+                o2 = Integer.parseInt(guiOrder2);
+            }catch ( NumberFormatException e){
+                logger.warn("Cannot parse guiOrder");
+            }
+            return Integer.compare(o1, o2);
+        }else{
+            return id1.getAlias().compareTo(id2.getAlias());
         }
     }
 

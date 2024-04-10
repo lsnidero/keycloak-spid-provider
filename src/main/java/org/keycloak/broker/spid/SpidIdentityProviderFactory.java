@@ -243,7 +243,20 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
     }
 
          */
-        return SpidIdentityProviderConfig.getConfigProperties();
+
+//        List<ProviderConfigProperty> configProperties = SpidIdentityProviderConfig.getConfigProperties();
+//
+//
+//        List<ProviderConfigProperty> build = ProviderConfigurationBuilder.create().property()
+//                .label("SPID SP Metadada")
+//                .defaultValue("http://localhost:8080/realms/my-spid/spid-sp-metadata")
+//                .helpText("Spid SP Metadata xml descriptor")
+//                .type(ProviderConfigProperty.STRING_TYPE)
+//                .add()
+//                .build();
+//        configProperties.addAll(build);
+//        return configProperties;
+        return  SpidIdentityProviderConfig.getConfigProperties();
     }
 
 }

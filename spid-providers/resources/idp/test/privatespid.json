@@ -9,7 +9,7 @@
     "addReadTokenRoleOnCreate": false,
     "authenticateByDefault": false,
     "linkOnly": false,
-    "firstBrokerLoginFlowAlias": "First Broker Login SPID",
+    "firstBrokerLoginFlowAlias": "First broker login SPID",
     "config": {
         "billingCodiceFiscale": "fiscalecode",
         "billingIdPaese": "idpaese",

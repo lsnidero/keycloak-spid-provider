@@ -412,7 +412,7 @@ public class SpidIdentityProvider extends AbstractIdentityProvider<SpidIdentityP
                             throw new RuntimeException(e);
                         }
                     })
-                    .map(key -> SPMetadataDescriptor.buildKeyDescriptorType(key, KeyTypes.SIGNING, null))
+                    .map(key -> SPMetadataDescriptor.buildKeyDescriptorType(key, KeyTypes.SIGNING, (String) null))
                     .collect(Collectors.toList());
 
             // We export only active ENC keys so IDP uses different key as soon as possible if a key rotation happens
