@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<saml2p:Response xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" Destination="https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service" ID="_5dc918e550f707d78d5694dd866d739a" InResponseTo="spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21" IssueInstant="2024-04-10T09:22:28.065Z" Version="2.0">
+<!-- NOTE: the signature can't be checked because I redacted some personal data -->
+<saml2p:Response xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" Destination="https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service" ID="_5dc918e550f707d78d5694dd866d739a" InResponseTo="spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21" IssueInstant="2024-04-10T09:22:28.000Z" Version="2.0">
   <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">https://id.lepida.it/idp/shibboleth</saml2:Issuer>
   <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
     <ds:SignedInfo>
@@ -44,7 +45,7 @@ TwIhEXyzknoiw1mGIEWZc6scnOAiwZeqTccUYVNHp+PSFs9SD8l+2PO4Oh8Y3dYT+5ojv+S6T7vy
   <saml2p:Status xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol">
     <saml2p:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
   </saml2p:Status>
-  <saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" ID="_220490c8c6419cdb82afec92f396b81f" IssueInstant="2024-04-10T09:22:28.065Z" Version="2.0">
+  <saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" ID="_220490c8c6419cdb82afec92f396b81f" IssueInstant="2024-04-10T09:22:28.000Z" Version="2.0">
     <saml2:Issuer Format="urn:oasis:names:tc:SAML:2.0:nameid-format:entity">https://id.lepida.it/idp/shibboleth</saml2:Issuer>
     <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
       <ds:SignedInfo>
@@ -89,15 +90,15 @@ TwIhEXyzknoiw1mGIEWZc6scnOAiwZeqTccUYVNHp+PSFs9SD8l+2PO4Oh8Y3dYT+5ojv+S6T7vy
     <saml2:Subject>
       <saml2:NameID Format="urn:oasis:names:tc:SAML:2.0:nameid-format:transient" NameQualifier="https://id.lepida.it/idp/shibboleth" SPNameQualifier="https://spid.agid.gov.it">AAdzZWNyZXQxFTZ4qumJz3d1mwNma3bvoo613YNJtmCxDLBXa2uv9zg82pL1BVVxItAfIViiRlsFrPSboRRtg/5rTfLSTeF8/Ud8D/uJ2P2RJzz+70C76YuRro5ZQXuCLSfWIpjjyYErhbvlBIJrC4g=</saml2:NameID>
       <saml2:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
-        <saml2:SubjectConfirmationData Address="151.67.184.22" InResponseTo="spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21" NotOnOrAfter="2024-04-10T09:27:28.089Z" Recipient="https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service"/>
+        <saml2:SubjectConfirmationData Address="11.22.33.44" InResponseTo="spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21" NotOnOrAfter="2024-04-10T09:27:28.000Z" Recipient="https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service"/>
       </saml2:SubjectConfirmation>
     </saml2:Subject>
-    <saml2:Conditions NotBefore="2024-04-10T09:22:28.065Z" NotOnOrAfter="2024-04-10T09:27:28.065Z">
+    <saml2:Conditions NotBefore="2024-04-10T09:22:28.000Z" NotOnOrAfter="2024-04-10T09:27:28.000Z">
       <saml2:AudienceRestriction>
         <saml2:Audience>https://spid.agid.gov.it</saml2:Audience>
       </saml2:AudienceRestriction>
     </saml2:Conditions>
-    <saml2:AuthnStatement AuthnInstant="2024-04-10T09:21:58.995Z">
+    <saml2:AuthnStatement AuthnInstant="2024-04-10T09:21:58.000Z">
       <saml2:SubjectLocality Address="151.67.184.22"/>
       <saml2:AuthnContext>
         <saml2:AuthnContextClassRef>https://www.spid.gov.it/SpidL2</saml2:AuthnContextClassRef>
@@ -108,46 +109,46 @@ TwIhEXyzknoiw1mGIEWZc6scnOAiwZeqTccUYVNHp+PSFs9SD8l+2PO4Oh8Y3dYT+5ojv+S6T7vy
         <saml2:AttributeValue/>
       </saml2:Attribute>
       <saml2:Attribute Name="placeOfBirth" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-        <saml2:AttributeValue>L483</saml2:AttributeValue>
+        <saml2:AttributeValue>H501</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="gender" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
         <saml2:AttributeValue>M</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="idCard" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-        <saml2:AttributeValue>cartaIdentita AY1965955 ComunediBUTTRIO(UDINE) 2017-04-15 2027-12-06</saml2:AttributeValue>
+        <saml2:AttributeValue>cartaIdentita AJ2356255 ComunediRoma(RM) 2017-04-15 2027-12-06</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="companyName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
         <saml2:AttributeValue/>
       </saml2:Attribute>
       <saml2:Attribute Name="spidCode" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-        <saml2:AttributeValue>LEPI0000193405</saml2:AttributeValue>
+        <saml2:AttributeValue>LEPI0000938721</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="dateOfBirth" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-        <saml2:AttributeValue>1981-12-06</saml2:AttributeValue>
+        <saml2:AttributeValue>1975-16-14</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="mobilePhone" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-        <saml2:AttributeValue>3290074475</saml2:AttributeValue>
+        <saml2:AttributeValue>345678987</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="digitalAddress" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
         <saml2:AttributeValue/>
       </saml2:Attribute>
       <saml2:Attribute Name="familyName" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-        <saml2:AttributeValue>SNIDERO</saml2:AttributeValue>
+        <saml2:AttributeValue>ROSSI</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="name" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-        <saml2:AttributeValue>LORENZO</saml2:AttributeValue>
+        <saml2:AttributeValue>MARIO</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="countyOfBirth" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-        <saml2:AttributeValue>UD</saml2:AttributeValue>
+        <saml2:AttributeValue>RM</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="registeredOffice" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
         <saml2:AttributeValue/>
       </saml2:Attribute>
       <saml2:Attribute Name="fiscalNumber" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-        <saml2:AttributeValue>TINIT-SNDLNZ81T06L483Q</saml2:AttributeValue>
+        <saml2:AttributeValue>TINIT-RSSMRA75H14H501X</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="email" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
-        <saml2:AttributeValue>lsnidero@gmail.com</saml2:AttributeValue>
+        <saml2:AttributeValue>mario@rossi.com</saml2:AttributeValue>
       </saml2:Attribute>
       <saml2:Attribute Name="expirationDate" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
         <saml2:AttributeValue>2031-10-31</saml2:AttributeValue>

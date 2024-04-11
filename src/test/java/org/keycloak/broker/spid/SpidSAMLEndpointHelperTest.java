@@ -1,73 +1,50 @@
 package org.keycloak.broker.spid;
 
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.keycloak.dom.saml.v2.assertion.AssertionType;
 import org.keycloak.dom.saml.v2.assertion.NameIDType;
 import org.keycloak.dom.saml.v2.protocol.ResponseType;
-import org.keycloak.dom.saml.v2.protocol.StatusCodeType;
-import org.keycloak.dom.saml.v2.protocol.StatusDetailType;
 import org.keycloak.dom.saml.v2.protocol.StatusType;
 import org.keycloak.saml.common.exceptions.ConfigurationException;
 import org.keycloak.saml.common.exceptions.ParsingException;
 import org.keycloak.saml.common.exceptions.ProcessingException;
 import org.keycloak.saml.common.util.DocumentUtil;
-import org.keycloak.saml.common.util.StringUtil;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 import javax.xml.datatype.DatatypeConfigurationException;
-import javax.xml.datatype.DatatypeFactory;
-import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.namespace.QName;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAmount;
-import java.time.temporal.TemporalUnit;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.keycloak.broker.spid.ObjectMother.SamlResponseTypes.*;
 
 class SpidSAMLEndpointHelperTest {
 
     SpidSAMLEndpointHelper helper;
 
-    Document samlResponse;
-    Element samlAssertion;
-
-    static XMLGregorianCalendar refTime;
-
-    @BeforeAll
-    static void loadSamlResponse() throws DatatypeConfigurationException {
-
-        refTime = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:22:28.065Z");
-
-    }
-
     @BeforeEach
-    void init() throws IOException, ConfigurationException, ParsingException, ProcessingException {
+    void init() {
         SpidIdentityProviderConfig config = new SpidIdentityProviderConfig();
         config.setIdpEntityId("https://id.lepida.it/idp/shibboleth");
+        config.setEntityId("https://spid.agid.gov.it");
+        config.setAuthnContextClassRefs("https://www.spid.gov.it/SpidL2");
         helper = new SpidSAMLEndpointHelper(config);
-
-        samlResponse = DocumentUtil.getDocument(Files.newInputStream(Path.of("src/test/resources/saml_response.xml")));
-        samlAssertion = DocumentUtil.getElement(samlResponse, new QName("Assertion"));
-
     }
-
 
     @Test
     void raiseSpidSamlCheck02() throws DatatypeConfigurationException {
         // Given
         String expected = "SpidSamlCheck_02";
-        ResponseType responseType = new ResponseType("id", DatatypeFactory.newInstance().newXMLGregorianCalendar());
+        ResponseType responseType = CompleteResponseType();
         responseType.setSignature(null);
         // When
         String actual = helper.verifySpidResponse(null, null, null, responseType, null, null);
@@ -80,9 +57,8 @@ class SpidSAMLEndpointHelperTest {
 
         // Given
         String expectedError = "SpidSamlCheck_03";
-        ResponseType responseType = new ResponseType("id", DatatypeFactory.newInstance().newXMLGregorianCalendar());
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", DatatypeFactory.newInstance().newXMLGregorianCalendar())));
+
+        ResponseType responseType = CompleteResponseType();
         responseType.getAssertions().get(0).getAssertion().setSignature(null);
 
         // When
@@ -96,12 +72,7 @@ class SpidSAMLEndpointHelperTest {
     void raiseSpidSamlCheck08() throws DatatypeConfigurationException {
         String expectedError = "SpidSamlCheck_08";
 
-        ResponseType responseType = new ResponseType("", refTime);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", refTime)));
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
+        ResponseType responseType = CompleteResponseType("", "2024-04-10T09:22:28.065Z");
 
         // When
         String actualError = helper.verifySpidResponse(null, null, null, responseType, null, null);
@@ -115,16 +86,10 @@ class SpidSAMLEndpointHelperTest {
     void raiseSpidSamlCheck14() throws DatatypeConfigurationException {
         // Given
         String expectedError = "SpidSamlCheck_14";
-
-        ResponseType responseType = new ResponseType("id", refTime);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", refTime)));
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
+        String requestAfterResponse = "2024-04-10T09:24:27.065Z";
 
         // When
-        String actualError = helper.verifySpidResponse(null, null, null, responseType, "2024-04-10T09:22:28.065Z", null);
+        String actualError = helper.verifySpidResponse(null, null, null, CompleteResponseType(), requestAfterResponse, null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -136,15 +101,8 @@ class SpidSAMLEndpointHelperTest {
         String expectedError = "SpidSamlCheck_15";
         String requestMoreThan3MinutesBefore = "2024-04-10T09:18:28.065Z";
 
-        ResponseType responseType = new ResponseType("id", refTime);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", refTime)));
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
         // When
-        String actualError = helper.verifySpidResponse(null, null, null, responseType, requestMoreThan3MinutesBefore, null);
+        String actualError = helper.verifySpidResponse(null, null, null, CompleteResponseType(), requestMoreThan3MinutesBefore, null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -155,17 +113,9 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_15";
         String requestTimeInRange = "2124-04-10T09:20:28.065Z";
+        String responseTimeInFuture = "2124-04-10T09:22:28.065Z";
 
-        XMLGregorianCalendar responseTimeInFuture = DatatypeFactory.newInstance().newXMLGregorianCalendar("2124-04-10T09:22:28.065Z");
-
-        ResponseType responseType = new ResponseType("id", responseTimeInFuture);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeInFuture)));
-
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
+        ResponseType responseType = CompleteResponseType("responseTimeInFuture", responseTimeInFuture);
 
         // When
         String actualError = helper.verifySpidResponse(null, null, null, responseType, requestTimeInRange, null);
@@ -179,18 +129,7 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_110";
 
-        XMLGregorianCalendar responseTimeWithMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:22:28.065Z");
-        responseTimeWithMs.setMillisecond(999);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithMs)));
-
-        Element assertion = DocumentUtil.getElement(samlResponse, new QName("Assertion"));
-        Element assertionSignature = DocumentUtil.getChildElement(assertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
+        ResponseType responseType = CompleteResponseType("responseTimeInFuture", "2024-04-10T09:22:28.999Z");
 
         // When
         String actualError = helper.verifySpidResponse(null, null, null, responseType, "2024-04-10T09:22:28.065Z", null);
@@ -205,21 +144,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr17";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlResponse.getDocumentElement().removeAttribute("InResponseTo");
+        Element samlResponse = samlResponseElement();
+        samlResponse.removeAttribute("InResponseTo");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, null, responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponse, null, null, CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -230,21 +159,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr16";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlResponse.getDocumentElement().setAttribute("InResponseTo", "");
+        Element samlResponse = samlResponseElement();
+        samlResponse.setAttribute("InResponseTo", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, null, responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponse, null, null, CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -255,19 +174,8 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr18";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, "non-expected-in-response-to", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "not-expected-in-response-to", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -278,20 +186,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_22";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
+        ResponseType responseType = ObjectMother.SamlResponseTypes.CompleteResponseType();
         responseType.setStatus(new StatusType());
 
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -302,20 +201,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_23";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
+        ResponseType responseType = CompleteResponseType();
         responseType.setStatus(null);
 
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -326,24 +216,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_24";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create(""));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
+        ResponseType responseType = CompleteResponseType();
+        responseType.getStatus().getStatusCode().setValue(URI.create(""));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -354,24 +231,12 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_25";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        statusType.setStatusCode(null);
-        statusType.setStatusDetail(new StatusDetailType());
-        statusType.setStatusMessage("not null");
-        responseType.setStatus(statusType);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
+        ResponseType responseType = CompleteResponseType();
+        responseType.getStatus().setStatusCode(null);
+        responseType.getStatus().setStatusMessage("not null");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -382,24 +247,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_26";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("uri:not:valid"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
+        ResponseType responseType = CompleteResponseType();
+        responseType.getStatus().getStatusCode().setValue(URI.create("uri:not:valid"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -410,25 +262,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_27";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
+        ResponseType responseType = CompleteResponseType();
         responseType.setIssuer(new NameIDType());
 
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -439,25 +277,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_28";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
+        ResponseType responseType = CompleteResponseType();
         responseType.setIssuer(null);
 
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -468,27 +292,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_29";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("wrong issuer");
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
+        ResponseType responseType = CompleteResponseType();
+        responseType.getIssuer().setValue("wrong issuer");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -499,28 +307,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_30";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create("uri:not:correct"));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
+        ResponseType responseType = CompleteResponseType();
+        responseType.getIssuer().setFormat(URI.create("uri:not:correct"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -531,30 +322,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_33";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
+        Element samlAssertion = samlAssertion();
         samlAssertion.setAttribute("ID", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -565,30 +337,11 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_39";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
+        Element samlAssertion = samlAssertion();
         samlAssertion.setAttribute("IssueInstant", "2024-04-10T08:22:28.065Z");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -599,30 +352,12 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_40";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
+        Element samlAssertion = samlAssertion();
         // more than 3 minutes
         samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:27:28.065Z");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -633,28 +368,12 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_110";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
+        Element samlAssertion = samlAssertion();
+        // with milliseconds
+        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:23:28.065Z");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -666,32 +385,12 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr42";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         samlAssertion.removeChild(subject);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -702,28 +401,7 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr41";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
-
+        Element samlAssertion = samlAssertion();
         // Remove Subject
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         subject.getParentNode().removeChild(subject);
@@ -731,7 +409,7 @@ class SpidSAMLEndpointHelperTest {
         samlAssertion.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml2", "Subject"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -742,28 +420,7 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_44";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
-
+        Element samlAssertion = samlAssertion();
         // Remove NameID
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         for (int i = 0; i < subject.getChildNodes().getLength(); i++) {
@@ -774,7 +431,7 @@ class SpidSAMLEndpointHelperTest {
         }
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -785,27 +442,7 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_43";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove NameID
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
@@ -817,7 +454,7 @@ class SpidSAMLEndpointHelperTest {
         }
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -828,27 +465,7 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_4546";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove NameID
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
@@ -856,7 +473,7 @@ class SpidSAMLEndpointHelperTest {
         nameID.setAttribute("Format", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -867,27 +484,7 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_47";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove NameID
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
@@ -895,7 +492,7 @@ class SpidSAMLEndpointHelperTest {
         nameID.setAttribute("Format", "uri:wrong:format");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -906,27 +503,7 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_4849";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove NameID
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
@@ -934,7 +511,7 @@ class SpidSAMLEndpointHelperTest {
         nameID.setAttribute("NameQualifier", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -945,27 +522,7 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr52";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove SubjectConfirmation
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
@@ -977,7 +534,7 @@ class SpidSAMLEndpointHelperTest {
         }
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -988,27 +545,7 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr51";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
@@ -1018,7 +555,7 @@ class SpidSAMLEndpointHelperTest {
         subject.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml2", "SubjectConfirmation"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1029,27 +566,7 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr53";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
@@ -1057,7 +574,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmation.removeAttribute("Method");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1069,35 +586,15 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr54";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
-        subjectConfirmation.setAttribute("Method","");
+        subjectConfirmation.setAttribute("Method", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1108,35 +605,16 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr55";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
+        Element samlAssertion = samlAssertion();
 
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
-        subjectConfirmation.setAttribute("Method","wrong value");
+        subjectConfirmation.setAttribute("Method", "wrong value");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1147,37 +625,17 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr56";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
         subjectConfirmation.removeChild(subjectConfirmationData);
-        subjectConfirmation.appendChild(samlResponse.createElement("PlaceHolder"));
+        subjectConfirmation.appendChild(samlAssertion.getOwnerDocument().createElement("PlaceHolder"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1188,27 +646,8 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr58";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
+        Element samlAssertion = samlAssertion();
 
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
@@ -1217,7 +656,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmationData.removeAttribute("Recipient");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1228,36 +667,16 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_59";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
-        subjectConfirmationData.setAttribute("Recipient","wrong-recipient");
+        subjectConfirmationData.setAttribute("Recipient", "wrong-recipient");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1268,36 +687,16 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr57";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
-        subjectConfirmationData.setAttribute("Recipient","");
+        subjectConfirmationData.setAttribute("Recipient", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1308,36 +707,16 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr61";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
+        Element samlAssertion = samlAssertion();
 
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
-
-        // Remove SubjectConfirmation children
+        // Remove InResponseTo
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
         subjectConfirmationData.removeAttribute("InResponseTo");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1349,36 +728,16 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr60";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
-        subjectConfirmationData.setAttribute("InResponseTo","");
+        subjectConfirmationData.setAttribute("InResponseTo", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1389,36 +748,16 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_nr62";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
-        subjectConfirmationData.setAttribute("InResponseTo","wrong-value");
+        subjectConfirmationData.setAttribute("InResponseTo", "wrong-value");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1429,36 +768,16 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_64";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         // Remove SubjectConfirmation children
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
-        subjectConfirmationData.setAttribute("NotOnOrAfter","");
+        subjectConfirmationData.setAttribute("NotOnOrAfter", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1469,35 +788,15 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_66";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
-        subjectConfirmationData.setAttribute("NotOnOrAfter","2024-04-10T09:22:28.089Z");
+        subjectConfirmationData.setAttribute("NotOnOrAfter", "2024-04-10T09:22:28.089Z");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1508,40 +807,20 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_67";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
         ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
         String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
-        subjectConfirmationData.setAttribute("NotOnOrAfter",someMinutesFromNow);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
 
         Element issuerElement = DocumentUtil.getChildElement(samlAssertion, new QName("Issuer"));
         issuerElement.getFirstChild().setNodeValue(null);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1552,40 +831,20 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_68";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
         ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
         String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
-        subjectConfirmationData.setAttribute("NotOnOrAfter",someMinutesFromNow);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
 
         Element issuerElement = DocumentUtil.getChildElement(samlAssertion, new QName("Issuer"));
         issuerElement.getParentNode().removeChild(issuerElement);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1596,40 +855,20 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_69";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
         ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
         String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
-        subjectConfirmationData.setAttribute("NotOnOrAfter",someMinutesFromNow);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
 
         Element issuerElement = DocumentUtil.getChildElement(samlAssertion, new QName("Issuer"));
         issuerElement.getFirstChild().setNodeValue("wrong-value");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1640,93 +879,518 @@ class SpidSAMLEndpointHelperTest {
         // Given
         String expectedError = "SpidSamlCheck_7071";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
-
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
+        Element samlAssertion = samlAssertion();
 
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
         ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
         String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
-        subjectConfirmationData.setAttribute("NotOnOrAfter",someMinutesFromNow);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
 
         Element issuerElement = DocumentUtil.getChildElement(samlAssertion, new QName("Issuer"));
-        issuerElement.setAttribute("Format","");
+        issuerElement.setAttribute("Format", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
     }
 
     @Test
-    void raiseSpidSamlCheck72() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
+    void raiseSpidSamlCheck72() throws DatatypeConfigurationException {
         // Given
         String expectedError = "SpidSamlCheck_72";
 
-        XMLGregorianCalendar responseTimeWithoutMs = DatatypeFactory.newInstance().newXMLGregorianCalendar("2024-04-10T09:23:28.000Z");
-        responseTimeWithoutMs.setMillisecond(0);
+        Element samlAssertion = samlAssertion();
 
-
-        ResponseType responseType = new ResponseType("id", responseTimeWithoutMs);
-        responseType.setSignature(DocumentUtil.getElement(samlResponse, new QName("Signature")));
-        responseType.addAssertion(new ResponseType.RTChoiceType(new AssertionType("id", responseTimeWithoutMs)));
-        StatusType statusType = new StatusType();
-        StatusCodeType statusCodeType = new StatusCodeType();
-        statusCodeType.setValue(URI.create("urn:oasis:names:tc:SAML:2.0:status:Success"));
-        statusType.setStatusCode(statusCodeType);
-        responseType.setStatus(statusType);
-        NameIDType issuer = new NameIDType();
-        issuer.setValue("https://id.lepida.it/idp/shibboleth");
-        issuer.setFormat(URI.create(SpidSAMLEndpoint.ISSUER_FORMAT));
-        responseType.setIssuer(issuer);
-
-        Element assertionSignature = DocumentUtil.getChildElement(samlAssertion, new QName("Signature"));
-        responseType.getAssertions().get(0).getAssertion().setSignature(assertionSignature);
-
-        samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:22:28.000Z");
 
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
         Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
         Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
         ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
         String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
-        subjectConfirmationData.setAttribute("NotOnOrAfter",someMinutesFromNow);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
 
         Element issuerElement = DocumentUtil.getChildElement(samlAssertion, new QName("Issuer"));
-        issuerElement.setAttribute("Format","wrong-format");
+        issuerElement.setAttribute("Format", "wrong-format");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse.getDocumentElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck73() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_73";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element element = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        element.getParentNode().removeChild(element);
+        samlAssertion.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml2", "Conditions"));
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck74() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_74";
+
+        Element samlAssertion = samlAssertion();
+
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element element = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        element.getParentNode().removeChild(element);
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck7576() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_7576";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element element = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        element.removeAttribute("NotBefore");
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck78() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_78";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element element = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        element.setAttribute("NotBefore", "2124-04-10T09:22:28.065Z");
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck7980() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_7980";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element element = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        element.removeAttribute("NotOnOrAfter");
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck82() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_82";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element element = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        element.setAttribute("NotBefore", "2024-04-10T08:22:28.065Z");
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck83() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_83";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element element = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        element.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element audienceRestriction = DocumentUtil.getChildElement(element, new QName("AudienceRestriction"));
+        audienceRestriction.getParentNode().removeChild(audienceRestriction);
+        element.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml", "AudienceRestriction"));
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
     }
 
 
+    @Test
+    void raiseSpidSamlCheck8586() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_8586";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element element = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        element.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element audienceRestriction = DocumentUtil.getChildElement(element, new QName("AudienceRestriction"));
+        Element audience = DocumentUtil.getChildElement(audienceRestriction, new QName("Audience"));
+        audience.getParentNode().removeChild(audience);
+        audienceRestriction.appendChild(samlAssertion.getOwnerDocument().createElement("DummyElement"));
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck87() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_87";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element element = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        element.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element audienceRestriction = DocumentUtil.getChildElement(element, new QName("AudienceRestriction"));
+        Element audience = DocumentUtil.getChildElement(audienceRestriction, new QName("Audience"));
+        audience.getFirstChild().setNodeValue("wrong-value");
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck88() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_88";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element conditions = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        conditions.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element authnStatement = DocumentUtil.getChildElement(samlAssertion, new QName("AuthnStatement"));
+        authnStatement.getParentNode().removeChild(authnStatement);
+        samlAssertion.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml2", "AuthnStatement"));
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck89() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_89";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element conditions = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        conditions.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element authnStatement = DocumentUtil.getChildElement(samlAssertion, new QName("AuthnStatement"));
+        authnStatement.getParentNode().removeChild(authnStatement);
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck90() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_90";
+
+        Element samlAssertion = samlAssertion();
 
 
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element conditions = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        conditions.setAttribute("NotOnOrAfter", someMinutesFromNow);
 
-    //System.out.println("Document:\n" + DocumentUtil.getDocumentAsString(subjectConfirmation.getOwnerDocument()));
+        Element authnStatement = DocumentUtil.getChildElement(samlAssertion, new QName("AuthnStatement"));
+        Element authnContext = DocumentUtil.getChildElement(authnStatement, new QName("AuthnContext"));
+        authnContext.getParentNode().removeChild(authnContext);
+        authnStatement.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml2", "AuthnContext"));
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck91() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_91";
+
+        Element samlAssertion = samlAssertion();
+
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element conditions = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        conditions.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element authnStatement = DocumentUtil.getChildElement(samlAssertion, new QName("AuthnStatement"));
+        Element authnContext = DocumentUtil.getChildElement(authnStatement, new QName("AuthnContext"));
+        authnContext.getParentNode().removeChild(authnContext);
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck92() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_92";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element conditions = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        conditions.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element authnStatement = DocumentUtil.getChildElement(samlAssertion, new QName("AuthnStatement"));
+        Element authnContext = DocumentUtil.getChildElement(authnStatement, new QName("AuthnContext"));
+        Element authnContextClassRef = DocumentUtil.getChildElement(authnContext, new QName("AuthnContextClassRef"));
+        authnContextClassRef.getFirstChild().setNodeValue("");
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck93() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_93";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element conditions = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        conditions.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element authnStatement = DocumentUtil.getChildElement(samlAssertion, new QName("AuthnStatement"));
+        Element authnContext = DocumentUtil.getChildElement(authnStatement, new QName("AuthnContext"));
+        Element authnContextClassRef = DocumentUtil.getChildElement(authnContext, new QName("AuthnContextClassRef"));
+        authnContextClassRef.getParentNode().removeChild(authnContextClassRef);
+        authnContext.appendChild(samlAssertion.getOwnerDocument().createElement("DummyElement"));
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck94() throws DatatypeConfigurationException {
+        // Given
+        String expectedError = "SpidSamlCheck_94";
+
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element conditions = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        conditions.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element authnStatement = DocumentUtil.getChildElement(samlAssertion, new QName("AuthnStatement"));
+        Element authnContext = DocumentUtil.getChildElement(authnStatement, new QName("AuthnContext"));
+        Element authnContextClassRef = DocumentUtil.getChildElement(authnContext, new QName("AuthnContextClassRef"));
+        authnContextClassRef.getFirstChild().setNodeValue("wrong-value");
+
+        // When
+        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseNoError() throws DatatypeConfigurationException {
+        // Given
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element conditions = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        conditions.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        // When
+        String actualResult = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertNull(actualResult);
+
+    }
+
+    private void printDoc(Document document) {
+        try {
+            System.out.println("Document:\n" + DocumentUtil.getDocumentAsString(document));
+        } catch (ProcessingException | ConfigurationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void printDoc(Element element) {
+        printDoc(element.getOwnerDocument());
+    }
+
 
 }
