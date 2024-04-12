@@ -12,13 +12,11 @@
     "firstBrokerLoginFlowAlias": "First broker login SPID",
     "config": {
         "authnContextClassRefs": "[\"https://www.spid.gov.it/SpidL2\"]",
-        "otherContactPhone": "+3907736551",
         "postBindingLogout": "true",
         "postBindingResponse": "true",
         "singleLogoutServiceUrl": "https://localhost:8443/demo/samlsso",
         "organizationDisplayNames": "en|Online services,it|Servizi online",
         "organizationUrls": "en|https://localhost:8443, it|https://localhost:8443",
-        "otherContactEmail": "a@b.it",
         "xmlSigKeyInfoKeyNameTransformer": "NONE",
         "allowCreate": "true",
         "organizationNames": "en|Online services,it|Servizi online",
@@ -33,15 +31,17 @@
         "entityId": "http://localhost:8082/auth/realms/spid",
         "attributeConsumingServiceName": "en|Online services,it|Servizi online",
         "signSpMetadata": "true",
-        "otherContactCompany": "Online services",
         "signatureAlgorithm": "RSA_SHA256",
         "wantAssertionsEncrypted": "true",
         "useJwksUrl": "true",
         "wantAssertionsSigned": "true",
-        "otherContactIpaCode": "r_emiro",
-        "otherContactIsSpPrivate": "false",
         "postBindingAuthnRequest": "true",
         "attributeConsumingServiceIndex": "1",
-        "principalType": "ATTRIBUTE"
+        "principalType": "ATTRIBUTE",
+        "otherContactCompany": "Example S.p.a.",
+        "otherContactPhone": "+39123456789",
+        "otherContactEmail": "info@example.it",
+        "otherContactIpaCode": "ipa_code",
+        "otherContactIsSpPrivate": "false"
     }
 }

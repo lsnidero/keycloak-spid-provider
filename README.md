@@ -384,3 +384,6 @@ This project is released under the Apache License 2.0, same as the main Keycloak
 ```
 
 
+
+
+http://spidsp:8080/realms/my-spid/account/#/

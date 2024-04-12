@@ -15,6 +15,7 @@ IDP=(
 "etnaid"
 "sielteid"
 "infocamereid"
+"intesigroupid"
 "timid"
 "spiditaliaid"
 "posteid"
@@ -29,8 +30,9 @@ ADMIN_CALLS=0
 START=$(date +%s)
 
 # Configure keycloak
-${KCADM} config credentials --server ${KSERVER} --realm master --user admin
-if [ ! $? -eq 0 ]; then
+
+if ! ${KCADM} config credentials --server ${KSERVER} --realm master --user admin
+then
     exit 1
 fi
 (( ADMIN_CALLS++ ))
