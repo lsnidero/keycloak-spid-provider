@@ -6,8 +6,8 @@
 http://www.apache.org/licenses/LICENSE-2.0
   -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.github.redhatitaly</groupId>
     <artifactId>keycloak-spid-provider</artifactId>
@@ -120,7 +120,7 @@ http://www.apache.org/licenses/LICENSE-2.0
             <scope>provided</scope>
         </dependency>
         -->
-        
+
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-server-spi</artifactId>
@@ -136,6 +136,13 @@ http://www.apache.org/licenses/LICENSE-2.0
             <artifactId>keycloak-services</artifactId>
             <scope>provided</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.7.30</version>
+            <scope>test</scope>
+        </dependency>
         <!--
         <dependency>
             <groupId>org.keycloak</groupId>
@@ -143,14 +150,42 @@ http://www.apache.org/licenses/LICENSE-2.0
             <scope>test</scope>
         </dependency>
         -->
+        <!--
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
         <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+            <version>1.3.14</version>
+        <scope>test</scope>
+
+    </dependency>-->
+        <!--
+        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
             <version>2.0.6.redhat-00001</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.github.hakky54</groupId>
+            <artifactId>consolecaptor</artifactId>
+            <version>1.0.3</version>
+            <scope>test</scope>
+        </dependency>-->
+        <dependency>
+            <groupId>io.github.hakky54</groupId>
+            <artifactId>logcaptor</artifactId>
+            <version>2.9.2</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.assertj/assertj-core -->
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.25.3</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -218,12 +253,16 @@ http://www.apache.org/licenses/LICENSE-2.0
                 </plugin>
                 <plugin>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>${surefire-plugin.version}</version>
+<!--                    <version>${surefire-plugin.version}</version>-->
+                    <version>3.2.5</version>
                     <configuration>
+
                         <systemPropertyVariables>
                             <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                             <maven.home>${maven.home}</maven.home>
                         </systemPropertyVariables>
+
+
                     </configuration>
                 </plugin>
                 <plugin>
@@ -240,7 +279,8 @@ http://www.apache.org/licenses/LICENSE-2.0
                     <configuration>
                         <systemPropertyVariables>
                             <native.image.path>
-                                ${project.build.directory}/${project.build.finalName}-runner</native.image.path>
+                                ${project.build.directory}/${project.build.finalName}-runner
+                            </native.image.path>
                             <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                             <maven.home>${maven.home}</maven.home>
                         </systemPropertyVariables>
@@ -268,6 +308,46 @@ http://www.apache.org/licenses/LICENSE-2.0
                 <groupId>io.quarkus</groupId>
                 <artifactId>quarkus-maven-plugin</artifactId>
             </plugin>
+            <!-- logCaptor -->
+
+                      <plugin>
+                          <groupId>org.apache.maven.plugins</groupId>
+                          <artifactId>maven-surefire-plugin</artifactId>
+                          <configuration>
+
+                              <classpathDependencyExcludes>
+                                  <!--
+                                                  <classpathDependencyExclude>org.jboss.slf4j:slf4j-jboss-logmanager</classpathDependencyExclude>
+                              <classpathDependencyExclude>ch.qos.logback:logback-core</classpathDependencyExclude>
+                                  <classpathDependencyExclude>ch.qos.logback:logback-classic</classpathDependencyExclude>
+
+
+                                  <classpathDependencyExclude>org.jboss.logging:jboss-logging</classpathDependencyExclude>
+                                  <classpathDependencyExclude>org.apache.logging.log4j:log4j-to-slf4j</classpathDependencyExclude>
+                                  <classpathDependencyExclude>org.apache.logging.log4j:log4j</classpathDependencyExclude>
+                                  <classpathDependencyExclude>org.apache.logging.log4j:log4j-api</classpathDependencyExclude>
+                                  <classpathDependencyExclude>org.slf4j:slf4j-simple</classpathDependencyExclude>
+                                  <classpathDependencyExclude>org.slf4j:jul-to-slf4j</classpathDependencyExclude>-->
+                                  <classpathDependencyExclude>org.jboss.slf4j:slf4j-jboss-logmanager</classpathDependencyExclude>
+                              </classpathDependencyExcludes>
+                          </configuration>
+                      </plugin>
+
+<!--
+                      <plugin>
+                          <groupId>org.apache.maven.plugins</groupId>
+                          <artifactId>maven-failsafe-plugin</artifactId>
+
+                          <configuration>
+                              <classpathDependencyExcludes>
+                                  <classpathDependencyExclude>ch.qos.logback:logback-core</classpathDependencyExclude>
+                                  <classpathDependencyExclude>ch.qos.logback:logback-classic</classpathDependencyExclude>
+
+                                                          <classpathDependencyExclude>org.slf4j:slf4j.simple</classpathDependencyExclude>
+                              </classpathDependencyExcludes>
+                          </configuration>
+                      </plugin>
+          -->
         </plugins>
     </build>
 </project>

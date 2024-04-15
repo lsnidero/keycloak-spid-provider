@@ -1,9 +1,13 @@
 package org.keycloak.broker.spid;
 
+import nl.altindag.log.LogCaptor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.keycloak.dom.saml.v2.assertion.NameIDType;
+import org.keycloak.dom.saml.v2.protocol.AuthnContextComparisonType;
 import org.keycloak.dom.saml.v2.protocol.ResponseType;
 import org.keycloak.dom.saml.v2.protocol.StatusType;
 import org.keycloak.saml.common.exceptions.ConfigurationException;
@@ -23,22 +27,25 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.keycloak.broker.spid.ObjectMother.SamlResponseTypes.*;
 
 class SpidSAMLEndpointHelperTest {
 
-    SpidSAMLEndpointHelper helper;
+    LogCaptor logCaptor;
 
     @BeforeEach
     void init() {
-        SpidIdentityProviderConfig config = new SpidIdentityProviderConfig();
-        config.setIdpEntityId("https://id.lepida.it/idp/shibboleth");
-        config.setEntityId("https://spid.agid.gov.it");
-        config.setAuthnContextClassRefs("https://www.spid.gov.it/SpidL2");
-        helper = new SpidSAMLEndpointHelper(config);
+        logCaptor = LogCaptor.forClass(SpidSAMLEndpointHelper.class);
     }
+
+    @AfterEach
+    void tearDown() {
+        logCaptor.clearLogs();
+        logCaptor.close();
+    }
+
 
     @Test
     void raiseSpidSamlCheck02() throws DatatypeConfigurationException {
@@ -47,7 +54,7 @@ class SpidSAMLEndpointHelperTest {
         ResponseType responseType = CompleteResponseType();
         responseType.setSignature(null);
         // When
-        String actual = helper.verifySpidResponse(null, null, null, responseType, null, null);
+        String actual = DefaultHelper().verifySpidResponse(null, null, null, responseType, null, null);
         // Then
         assertEquals(expected, actual);
     }
@@ -62,7 +69,7 @@ class SpidSAMLEndpointHelperTest {
         responseType.getAssertions().get(0).getAssertion().setSignature(null);
 
         // When
-        String actualError = helper.verifySpidResponse(null, null, null, responseType, null, null);
+        String actualError = DefaultHelper().verifySpidResponse(null, null, null, responseType, null, null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -75,7 +82,7 @@ class SpidSAMLEndpointHelperTest {
         ResponseType responseType = CompleteResponseType("", "2024-04-10T09:22:28.065Z");
 
         // When
-        String actualError = helper.verifySpidResponse(null, null, null, responseType, null, null);
+        String actualError = DefaultHelper().verifySpidResponse(null, null, null, responseType, null, null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -89,7 +96,7 @@ class SpidSAMLEndpointHelperTest {
         String requestAfterResponse = "2024-04-10T09:24:27.065Z";
 
         // When
-        String actualError = helper.verifySpidResponse(null, null, null, CompleteResponseType(), requestAfterResponse, null);
+        String actualError = DefaultHelper().verifySpidResponse(null, null, null, CompleteResponseType(), requestAfterResponse, null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -102,7 +109,7 @@ class SpidSAMLEndpointHelperTest {
         String requestMoreThan3MinutesBefore = "2024-04-10T09:18:28.065Z";
 
         // When
-        String actualError = helper.verifySpidResponse(null, null, null, CompleteResponseType(), requestMoreThan3MinutesBefore, null);
+        String actualError = DefaultHelper().verifySpidResponse(null, null, null, CompleteResponseType(), requestMoreThan3MinutesBefore, null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -118,7 +125,7 @@ class SpidSAMLEndpointHelperTest {
         ResponseType responseType = CompleteResponseType("responseTimeInFuture", responseTimeInFuture);
 
         // When
-        String actualError = helper.verifySpidResponse(null, null, null, responseType, requestTimeInRange, null);
+        String actualError = DefaultHelper().verifySpidResponse(null, null, null, responseType, requestTimeInRange, null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -132,7 +139,7 @@ class SpidSAMLEndpointHelperTest {
         ResponseType responseType = CompleteResponseType("responseTimeInFuture", "2024-04-10T09:22:28.999Z");
 
         // When
-        String actualError = helper.verifySpidResponse(null, null, null, responseType, "2024-04-10T09:22:28.065Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(null, null, null, responseType, "2024-04-10T09:22:28.065Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -148,7 +155,7 @@ class SpidSAMLEndpointHelperTest {
         samlResponse.removeAttribute("InResponseTo");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse, null, null, CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponse, null, null, CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -163,7 +170,7 @@ class SpidSAMLEndpointHelperTest {
         samlResponse.setAttribute("InResponseTo", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponse, null, null, CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponse, null, null, CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -175,7 +182,7 @@ class SpidSAMLEndpointHelperTest {
         String expectedError = "SpidSamlCheck_nr18";
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "not-expected-in-response-to", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "not-expected-in-response-to", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -190,7 +197,7 @@ class SpidSAMLEndpointHelperTest {
         responseType.setStatus(new StatusType());
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -205,7 +212,7 @@ class SpidSAMLEndpointHelperTest {
         responseType.setStatus(null);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -220,7 +227,7 @@ class SpidSAMLEndpointHelperTest {
         responseType.getStatus().getStatusCode().setValue(URI.create(""));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -236,7 +243,7 @@ class SpidSAMLEndpointHelperTest {
         responseType.getStatus().setStatusMessage("not null");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -251,7 +258,7 @@ class SpidSAMLEndpointHelperTest {
         responseType.getStatus().getStatusCode().setValue(URI.create("uri:not:valid"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -266,7 +273,7 @@ class SpidSAMLEndpointHelperTest {
         responseType.setIssuer(new NameIDType());
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -281,7 +288,7 @@ class SpidSAMLEndpointHelperTest {
         responseType.setIssuer(null);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -296,7 +303,7 @@ class SpidSAMLEndpointHelperTest {
         responseType.getIssuer().setValue("wrong issuer");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -311,7 +318,7 @@ class SpidSAMLEndpointHelperTest {
         responseType.getIssuer().setFormat(URI.create("uri:not:correct"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", responseType, "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -326,7 +333,7 @@ class SpidSAMLEndpointHelperTest {
         samlAssertion.setAttribute("ID", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -341,7 +348,7 @@ class SpidSAMLEndpointHelperTest {
         samlAssertion.setAttribute("IssueInstant", "2024-04-10T08:22:28.065Z");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -357,7 +364,7 @@ class SpidSAMLEndpointHelperTest {
         samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:27:28.065Z");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -373,7 +380,7 @@ class SpidSAMLEndpointHelperTest {
         samlAssertion.setAttribute("IssueInstant", "2024-04-10T09:23:28.065Z");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -390,7 +397,7 @@ class SpidSAMLEndpointHelperTest {
         samlAssertion.removeChild(subject);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -409,7 +416,7 @@ class SpidSAMLEndpointHelperTest {
         samlAssertion.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml2", "Subject"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -431,7 +438,7 @@ class SpidSAMLEndpointHelperTest {
         }
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -454,7 +461,7 @@ class SpidSAMLEndpointHelperTest {
         }
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -473,7 +480,7 @@ class SpidSAMLEndpointHelperTest {
         nameID.setAttribute("Format", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -492,7 +499,7 @@ class SpidSAMLEndpointHelperTest {
         nameID.setAttribute("Format", "uri:wrong:format");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -511,7 +518,7 @@ class SpidSAMLEndpointHelperTest {
         nameID.setAttribute("NameQualifier", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -534,7 +541,7 @@ class SpidSAMLEndpointHelperTest {
         }
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -555,7 +562,7 @@ class SpidSAMLEndpointHelperTest {
         subject.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml2", "SubjectConfirmation"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -574,7 +581,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmation.removeAttribute("Method");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -594,7 +601,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmation.setAttribute("Method", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -614,7 +621,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmation.setAttribute("Method", "wrong value");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -635,7 +642,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmation.appendChild(samlAssertion.getOwnerDocument().createElement("PlaceHolder"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -656,7 +663,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmationData.removeAttribute("Recipient");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
 
         // Then
         assertEquals(expectedError, actualError);
@@ -676,7 +683,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmationData.setAttribute("Recipient", "wrong-recipient");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -696,7 +703,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmationData.setAttribute("Recipient", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -716,7 +723,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmationData.removeAttribute("InResponseTo");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -737,7 +744,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmationData.setAttribute("InResponseTo", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -757,7 +764,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmationData.setAttribute("InResponseTo", "wrong-value");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -777,7 +784,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmationData.setAttribute("NotOnOrAfter", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -796,7 +803,7 @@ class SpidSAMLEndpointHelperTest {
         subjectConfirmationData.setAttribute("NotOnOrAfter", "2024-04-10T09:22:28.089Z");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -820,7 +827,7 @@ class SpidSAMLEndpointHelperTest {
         issuerElement.getFirstChild().setNodeValue(null);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -844,7 +851,7 @@ class SpidSAMLEndpointHelperTest {
         issuerElement.getParentNode().removeChild(issuerElement);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -868,7 +875,7 @@ class SpidSAMLEndpointHelperTest {
         issuerElement.getFirstChild().setNodeValue("wrong-value");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -892,7 +899,7 @@ class SpidSAMLEndpointHelperTest {
         issuerElement.setAttribute("Format", "");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -917,7 +924,7 @@ class SpidSAMLEndpointHelperTest {
         issuerElement.setAttribute("Format", "wrong-format");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -942,7 +949,7 @@ class SpidSAMLEndpointHelperTest {
         samlAssertion.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml2", "Conditions"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -967,7 +974,7 @@ class SpidSAMLEndpointHelperTest {
         element.getParentNode().removeChild(element);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -991,7 +998,7 @@ class SpidSAMLEndpointHelperTest {
         element.removeAttribute("NotBefore");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1015,7 +1022,7 @@ class SpidSAMLEndpointHelperTest {
         element.setAttribute("NotBefore", "2124-04-10T09:22:28.065Z");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1039,7 +1046,7 @@ class SpidSAMLEndpointHelperTest {
         element.removeAttribute("NotOnOrAfter");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1063,7 +1070,7 @@ class SpidSAMLEndpointHelperTest {
         element.setAttribute("NotBefore", "2024-04-10T08:22:28.065Z");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1091,7 +1098,7 @@ class SpidSAMLEndpointHelperTest {
         element.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml", "AudienceRestriction"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1121,7 +1128,7 @@ class SpidSAMLEndpointHelperTest {
         audienceRestriction.appendChild(samlAssertion.getOwnerDocument().createElement("DummyElement"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1149,7 +1156,7 @@ class SpidSAMLEndpointHelperTest {
         audience.getFirstChild().setNodeValue("wrong-value");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1177,7 +1184,7 @@ class SpidSAMLEndpointHelperTest {
         samlAssertion.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml2", "AuthnStatement"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1204,7 +1211,7 @@ class SpidSAMLEndpointHelperTest {
         authnStatement.getParentNode().removeChild(authnStatement);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1234,7 +1241,7 @@ class SpidSAMLEndpointHelperTest {
         authnStatement.appendChild(samlAssertion.getOwnerDocument().createElementNS("saml2", "AuthnContext"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1263,7 +1270,7 @@ class SpidSAMLEndpointHelperTest {
         authnContext.getParentNode().removeChild(authnContext);
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1292,7 +1299,7 @@ class SpidSAMLEndpointHelperTest {
         authnContextClassRef.getFirstChild().setNodeValue("");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
@@ -1322,16 +1329,57 @@ class SpidSAMLEndpointHelperTest {
         authnContext.appendChild(samlAssertion.getOwnerDocument().createElement("DummyElement"));
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "https://www.spid.gov.it/SpidL1,https://www.spid.gov.it/SpidL2,EXACT,SpidSamlCheck_94",
+            "https://www.spid.gov.it/SpidL2,https://www.spid.gov.it/SpidL1,EXACT,SpidSamlCheck_95",
+            "https://www.spid.gov.it/SpidL3,https://www.spid.gov.it/SpidL1,EXACT,SpidSamlCheck_96",
+            "https://www.spid.gov.it/SpidL1,https://www.spid.gov.it/SpidL2,MINIMUM,SpidSamlCheck_94",
+            "https://www.spid.gov.it/SpidL2,https://www.spid.gov.it/SpidL3,MINIMUM,SpidSamlCheck_95",
+            "https://www.spid.gov.it/SpidL2,https://www.spid.gov.it/SpidL1,MAXIMUM,SpidSamlCheck_95",
+            "https://www.spid.gov.it/SpidL3,https://www.spid.gov.it/SpidL1,MAXIMUM,SpidSamlCheck_96",
+            "https://www.spid.gov.it/SpidL1,https://www.spid.gov.it/SpidL2,BETTER,SpidSamlCheck_94",
+            "https://www.spid.gov.it/SpidL2,https://www.spid.gov.it/SpidL1,BETTER,SpidSamlCheck_95",
+            "https://www.spid.gov.it/SpidL3,https://www.spid.gov.it/SpidL2,BETTER,SpidSamlCheck_96"
+    })
+    void raiseSpidSamlCheck94_95_96(String authnClassRefResponse, String authnClassRef, String comparisonType, String expectedError) throws DatatypeConfigurationException {
+        // Given
+        Element samlAssertion = samlAssertion();
+
+        Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
+        Element subjectConfirmation = DocumentUtil.getChildElement(subject, new QName("SubjectConfirmation"));
+        Element subjectConfirmationData = DocumentUtil.getChildElement(subjectConfirmation, new QName("SubjectConfirmationData"));
+        ZonedDateTime to = ZonedDateTime.now().plus(Duration.of(3, TimeUnit.MINUTES.toChronoUnit()));
+        String someMinutesFromNow = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").format(to);
+        subjectConfirmationData.setAttribute("NotOnOrAfter", someMinutesFromNow);
+        // Confirmation NotOnOrAfter is checked with "now"
+        Element conditions = DocumentUtil.getChildElement(samlAssertion, new QName("Conditions"));
+        conditions.setAttribute("NotOnOrAfter", someMinutesFromNow);
+
+        Element authnStatement = DocumentUtil.getChildElement(samlAssertion, new QName("AuthnStatement"));
+        Element authnContext = DocumentUtil.getChildElement(authnStatement, new QName("AuthnContext"));
+        Element authnContextClassRef = DocumentUtil.getChildElement(authnContext, new QName("AuthnContextClassRef"));
+        authnContextClassRef.getFirstChild().setNodeValue(authnClassRefResponse);
+
+        SpidSAMLEndpointHelper customHelper = CustomHelper(authnClassRef, AuthnContextComparisonType.valueOf(comparisonType));
+
+        // When
+        String actualError = customHelper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
     }
 
     @Test
-    void raiseSpidSamlCheck94() throws DatatypeConfigurationException {
+    void raiseSpidSamlCheck97() throws DatatypeConfigurationException {
         // Given
-        String expectedError = "SpidSamlCheck_94";
+        String expectedError = "SpidSamlCheck_97";
 
         Element samlAssertion = samlAssertion();
 
@@ -1351,11 +1399,12 @@ class SpidSAMLEndpointHelperTest {
         authnContextClassRef.getFirstChild().setNodeValue("wrong-value");
 
         // When
-        String actualError = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertEquals(expectedError, actualError);
     }
+
 
     @Test
     void raiseNoError() throws DatatypeConfigurationException {
@@ -1373,7 +1422,7 @@ class SpidSAMLEndpointHelperTest {
         conditions.setAttribute("NotOnOrAfter", someMinutesFromNow);
 
         // When
-        String actualResult = helper.verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
+        String actualResult = DefaultHelper().verifySpidResponse(samlResponseElement(), samlAssertion, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21", CompleteResponseType(), "2024-04-10T09:22:28.000Z", "https://login.agid.gov.it/saml/module.php/saml/sp/saml2-acs.php/service");
 
         // Then
         assertNull(actualResult);
@@ -1392,5 +1441,160 @@ class SpidSAMLEndpointHelperTest {
         printDoc(element.getOwnerDocument());
     }
 
+
+    @Test
+    void raiseSpidStatusError104() {
+        // Given
+        String expectedError = "SpidFault_ErrorCode_nr19";
+        // When
+        String actualError = DefaultHelper().checkSpidStatus(UserAnomalies("ErrorCode nr19"));
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidStatusError105() {
+        // Given
+        String expectedError = "SpidFault_ErrorCode_nr20";
+        // When
+        String actualError = DefaultHelper().checkSpidStatus(UserAnomalies("ErrorCode nr20"));
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidStatusError106() {
+        // Given
+        String expectedError = "SpidFault_ErrorCode_nr21";
+        // When
+        String actualError = DefaultHelper().checkSpidStatus(UserAnomalies("ErrorCode nr21"));
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidStatusError107() {
+        // Given
+        String expectedError = "SpidFault_ErrorCode_nr22";
+        // When
+        String actualError = DefaultHelper().checkSpidStatus(UserAnomalies("ErrorCode nr22"));
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidStatusError108() {
+        // Given
+        String expectedError = "SpidFault_ErrorCode_nr23";
+        // When
+        String actualError = DefaultHelper().checkSpidStatus(UserAnomalies("ErrorCode nr23"));
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    //validateInResponseToAttribute
+
+    @Test
+    void successExpectedRequestIdIsEmpty() {
+        // Given
+        String expectedRequestId = null;
+
+        // When
+        boolean actual = DefaultHelper().validateInResponseToAttribute(CompleteResponseType(), null);
+
+        // Then
+        assertTrue(actual);
+    }
+
+
+    @Test
+    void failForResponseNull() {
+
+        // Given
+        ResponseType responseType = CompleteResponseType();
+        responseType.setInResponseTo(null);
+
+        // When
+        boolean actual = DefaultHelper().validateInResponseToAttribute(responseType, "something");
+
+        // Then
+        assertAll("Validation error", () -> assertFalse(actual), () -> assertThat(logCaptor.getErrorLogs()).containsExactly("Response Validation Error: InResponseTo attribute was expected but not present in received response"));
+
+    }
+
+    @Test
+    void failForResponseEmpty() {
+
+        // Given
+        ResponseType responseType = CompleteResponseType();
+        responseType.setInResponseTo("");
+
+        // When
+        boolean actual = DefaultHelper().validateInResponseToAttribute(responseType, "something");
+
+        // Then
+        assertAll("Validation error", () -> assertFalse(actual), () -> assertThat(logCaptor.getErrorLogs()).containsExactly("Response Validation Error: InResponseTo attribute was expected but it is empty in received response"));
+
+    }
+
+    @Test
+    void failForResponseDontMatch() {
+
+        // Given
+        ResponseType responseType = CompleteResponseType();
+        responseType.setInResponseTo("something");
+
+        // When
+        boolean actual = DefaultHelper().validateInResponseToAttribute(responseType, "something else");
+
+        // Then
+        assertAll("Validation error", () -> assertFalse(actual), () -> assertThat(logCaptor.getErrorLogs()).containsExactly("Response Validation Error: received InResponseTo attribute does not match the expected request ID"));
+
+    }
+
+
+    @Test
+    void successAssertionNotPresent() {
+        // Given
+        ResponseType responseType = CompleteResponseType();
+        ResponseType.RTChoiceType rtChoiceType = responseType.getAssertions().get(0);
+        responseType.removeAssertion(rtChoiceType);
+
+        // When
+        boolean actual = DefaultHelper().validateInResponseToAttribute(responseType, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21");
+
+        // Then
+        assertAll("Validation OK", () -> assertTrue(actual), () -> assertThat(logCaptor.getErrorLogs()).isEmpty());
+    }
+
+    @Test
+    void failForEmptySubjectConfirmationData() {
+
+        // Given
+        ResponseType responseType = CompleteResponseType();
+        responseType.getAssertions().get(0).getAssertion().getSubject().getConfirmation().get(0).getSubjectConfirmationData().setInResponseTo("");
+
+        // When
+        boolean actual = DefaultHelper().validateInResponseToAttribute(responseType, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21");
+
+        // Then
+        assertAll("Validation error", () -> assertFalse(actual), () -> assertThat(logCaptor.getErrorLogs()).containsExactly("Response Validation Error: SubjectConfirmationData InResponseTo attribute was expected but it is empty in received response"));
+
+    }
+
+    @Test
+    void failForWrongSubjectConfirmationData() {
+
+        // Given
+        ResponseType responseType = CompleteResponseType();
+        responseType.getAssertions().get(0).getAssertion().getSubject().getConfirmation().get(0).getSubjectConfirmationData().setInResponseTo("wrong");
+
+        // When
+        boolean actual = DefaultHelper().validateInResponseToAttribute(responseType, "spid-php_4be997744d3fde7b019fcfcae44d295ab3adb82c21");
+
+        // Then
+        assertAll("Validation error", () -> assertFalse(actual), () -> assertThat(logCaptor.getErrorLogs()).containsExactly("Response Validation Error: received SubjectConfirmationData InResponseTo attribute does not match the expected request ID"));
+
+    }
 
 }

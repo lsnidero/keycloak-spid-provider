@@ -37,6 +37,7 @@
         "useJwksUrl": "true",
         "wantAssertionsSigned": "true",
         "postBindingAuthnRequest": "true",
+        "forceAuthn": "true",
         "attributeConsumingServiceIndex": "1",
         "addExtensionsElementWithKeyInfo": "false",
         "principalType": "ATTRIBUTE",

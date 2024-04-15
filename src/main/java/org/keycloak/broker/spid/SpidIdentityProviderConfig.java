@@ -137,7 +137,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     }
 
     public boolean isValidateSignature() {
-        return Boolean.valueOf(getConfig().get(VALIDATE_SIGNATURE));
+        return Boolean.parseBoolean(getConfig().get(VALIDATE_SIGNATURE));
     }
 
     public void setValidateSignature(boolean validateSignature) {
@@ -145,7 +145,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     }
 
     public boolean isForceAuthn() {
-        return Boolean.valueOf(getConfig().get(FORCE_AUTHN));
+        return Boolean.parseBoolean(getConfig().get(FORCE_AUTHN));
     }
 
     public void setForceAuthn(boolean forceAuthn) {
@@ -199,7 +199,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     }
 
     public boolean isWantAuthnRequestsSigned() {
-        return Boolean.valueOf(getConfig().get(WANT_AUTHN_REQUESTS_SIGNED));
+        return Boolean.parseBoolean(getConfig().get(WANT_AUTHN_REQUESTS_SIGNED));
     }
 
     public void setWantAuthnRequestsSigned(boolean wantAuthnRequestsSigned) {
@@ -207,7 +207,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     }
 
     public boolean isWantAssertionsSigned() {
-        return Boolean.valueOf(getConfig().get(WANT_ASSERTIONS_SIGNED));
+        return Boolean.parseBoolean(getConfig().get(WANT_ASSERTIONS_SIGNED));
     }
 
     public void setWantAssertionsSigned(boolean wantAssertionsSigned) {
@@ -215,7 +215,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     }
 
     public boolean isWantAssertionsEncrypted() {
-        return Boolean.valueOf(getConfig().get(WANT_ASSERTIONS_ENCRYPTED));
+        return Boolean.parseBoolean(getConfig().get(WANT_ASSERTIONS_ENCRYPTED));
     }
 
     public void setWantAssertionsEncrypted(boolean wantAssertionsEncrypted) {
@@ -223,7 +223,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     }
 
     public boolean isAddExtensionsElementWithKeyInfo() {
-        return Boolean.valueOf(getConfig().get(ADD_EXTENSIONS_ELEMENT_WITH_KEY_INFO));
+        return Boolean.parseBoolean(getConfig().get(ADD_EXTENSIONS_ELEMENT_WITH_KEY_INFO));
     }
 
     public void setAddExtensionsElementWithKeyInfo(boolean addExtensionsElementWithKeyInfo) {
@@ -255,7 +255,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     }
 
     public boolean isPostBindingAuthnRequest() {
-        return Boolean.valueOf(getConfig().get(POST_BINDING_AUTHN_REQUEST));
+        return Boolean.parseBoolean(getConfig().get(POST_BINDING_AUTHN_REQUEST));
     }
 
     public void setPostBindingAuthnRequest(boolean postBindingAuthnRequest) {
@@ -263,7 +263,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     }
 
     public boolean isPostBindingResponse() {
-        return Boolean.valueOf(getConfig().get(POST_BINDING_RESPONSE));
+        return Boolean.parseBoolean(getConfig().get(POST_BINDING_RESPONSE));
     }
 
     public void setPostBindingResponse(boolean postBindingResponse) {
@@ -277,7 +277,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
             // of the binding for the response:
             return isPostBindingResponse();
         }
-        return Boolean.valueOf(postBindingLogout);
+        return Boolean.parseBoolean(postBindingLogout);
     }
 
     public void setPostBindingLogout(boolean postBindingLogout) {
@@ -285,7 +285,7 @@ public class SpidIdentityProviderConfig extends IdentityProviderModel {
     }
 
     public boolean isBackchannelSupported() {
-        return Boolean.valueOf(getConfig().get(BACKCHANNEL_SUPPORTED));
+        return Boolean.parseBoolean(getConfig().get(BACKCHANNEL_SUPPORTED));
     }
 
     public void setBackchannelSupported(boolean backchannel) {

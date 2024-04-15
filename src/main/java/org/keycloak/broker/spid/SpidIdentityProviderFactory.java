@@ -227,6 +227,7 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
 
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
+
         /*
         final Properties props = new Properties();
         try {
@@ -243,19 +244,6 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
     }
 
          */
-
-//        List<ProviderConfigProperty> configProperties = SpidIdentityProviderConfig.getConfigProperties();
-//
-//
-//        List<ProviderConfigProperty> build = ProviderConfigurationBuilder.create().property()
-//                .label("SPID SP Metadada")
-//                .defaultValue("http://localhost:8080/realms/my-spid/spid-sp-metadata")
-//                .helpText("Spid SP Metadata xml descriptor")
-//                .type(ProviderConfigProperty.STRING_TYPE)
-//                .add()
-//                .build();
-//        configProperties.addAll(build);
-//        return configProperties;
         return  SpidIdentityProviderConfig.getConfigProperties();
     }
 

@@ -11,7 +11,7 @@
     "linkOnly": false,
     "firstBrokerLoginFlowAlias": "First broker login SPID",
     "config": {
-        "billingCodiceFiscale": "fiscalecode",
+        "billingCodiceFiscale": "CDCFCL80P47H505G",
         "billingIdPaese": "idpaese",
         "authnContextClassRef": "https://www.spid.gov.it/SpidL2",
         "authnContextClassRefs": "[\"https://www.spid.gov.it/SpidL2\"]",
@@ -54,7 +54,7 @@
         "billingAnagraficaCognome": "cognome",
         "billingSedeCap": "codice postale",
         "nameIDPolicyFormat": "urn:oasis:names:tc:SAML:2.0:nameid-format:transient",
-        "entityId": "http://localhost:8082/auth/realms/spid",
+        "entityId": "http://localhost:8080/realms/my-spid",
         "signatureAlgorithm": "RSA_SHA256",
         "useJwksUrl": "true",
         "billingIdCodice": "idcodice",

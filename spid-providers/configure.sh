@@ -31,7 +31,7 @@ START=$(date +%s)
 
 # Configure keycloak
 
-if ! ${KCADM} config credentials --server ${KSERVER} --realm master --user admin
+  if ! ${KCADM} config credentials --server ${KSERVER} --realm master --user admin
 then
     exit 1
 fi

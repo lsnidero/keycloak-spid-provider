@@ -387,3 +387,10 @@ This project is released under the Apache License 2.0, same as the main Keycloak
 
 
 http://spidsp:8080/realms/my-spid/account/#/
+
+podman build -t mykeycloak .
+
+podman run -it -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin -p 8080:8080 -p 8443:8443  mykeycloak:latest  start-dev
+
+
+./bin/kcadm.sh create authentication/flows/first%20broker%20login/copy -b '{"newName": "First broker login SPID"}'

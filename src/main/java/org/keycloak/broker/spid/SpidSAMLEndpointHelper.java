@@ -1,12 +1,14 @@
 package org.keycloak.broker.spid;
 
 import org.jboss.logging.Logger;
+import org.keycloak.dom.saml.v2.assertion.SubjectConfirmationDataType;
+import org.keycloak.dom.saml.v2.assertion.SubjectConfirmationType;
+import org.keycloak.dom.saml.v2.assertion.SubjectType;
 import org.keycloak.dom.saml.v2.protocol.ResponseType;
-import org.keycloak.saml.common.constants.JBossSAMLConstants;
 import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.common.util.DocumentUtil;
 import org.keycloak.saml.common.util.StringUtil;
-import org.keycloak.sessions.AuthenticationSessionModel;
+import org.keycloak.services.messages.Messages;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -21,6 +23,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.GregorianCalendar;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Externalized the SPID validation method. Using this approach is much simpler create some useful unit tests.
@@ -46,11 +49,11 @@ public class SpidSAMLEndpointHelper {
      *   String assertionConsumerServiceURL = authSession.getClientNote(JBossSAMLConstants.ASSERTION_CONSUMER_SERVICE_URL.name());
      * </pre>
      *
-     * @param documentElement complete document
-     * @param assertionElement single assertion
-     * @param expectedRequestId request id
-     * @param responseType response type
-     * @param requestIssueInstantNote request Issue instant note (extrated from
+     * @param documentElement             complete document
+     * @param assertionElement            single assertion
+     * @param expectedRequestId           request id
+     * @param responseType                response type
+     * @param requestIssueInstantNote     request Issue instant note (extrated from
      * @param assertionConsumerServiceURL assertion consumer service url
      * @return spidcode response error string
      */
@@ -513,23 +516,49 @@ public class SpidSAMLEndpointHelper {
         if (authnContextClassRef == null) {
             return "SpidSamlCheck_93";
         }
-        /**
+        /*
          *nota: se vi sono più spidLevel specificati in keycloak, la response avrà sempre e solo il primo
          * Non essendo specificato nel tool il preciso comportamento in casi di vari livelli configurati ma solo uno
          * inviato dalla request, si sceglie di controllare che il livello della response sia contenuto tra i livelli
          * configurati su kc (quindi nella config della request)
          */
+
         //94 Assertion > AuthContextClassRef spid level different from request. This block also implies #95 #96 #97
         String responseSpidLevel = authnContextClassRef.getFirstChild().getNodeValue();
         List<String> requestSpidLevels = Arrays.asList(config.getAuthnContextClassRefs().replaceAll("[\"\\[\\](){}]", "").trim().split(","));
-        if (!requestSpidLevels.contains(responseSpidLevel)) {
-            return "SpidSamlCheck_94";
+
+        int spidLevelFromResponse = extractSpidLevel(authnContextClassRef.getFirstChild().getNodeValue());
+        // only the first on configuration
+        int spidLevelFromConfig = extractSpidLevel(requestSpidLevels.get(0));
+        if (spidLevelFromResponse < 1 || spidLevelFromConfig < 1) {
+            return "SpidSamlCheck_97";
         }
+
+        int comparison = switch (config.getAuthnContextComparisonType()) {
+            case BETTER -> !responseSpidLevel.equals(config.getAuthnContextClassRefs()) ? spidLevelFromResponse : 0;
+            case MAXIMUM -> spidLevelFromResponse > spidLevelFromConfig ? spidLevelFromResponse : 0;
+            case MINIMUM -> spidLevelFromResponse < spidLevelFromConfig ? spidLevelFromResponse : 0;
+            case EXACT -> spidLevelFromResponse != spidLevelFromConfig ? spidLevelFromResponse : 0;
+        };
 
         //98,99,100,103,104,105,106,107,108 caught by kc
         //109 ok
+        return switch (comparison) {
+            case 1 -> "SpidSamlCheck_94";
+            case 2 -> "SpidSamlCheck_95";
+            case 3 -> "SpidSamlCheck_96";
+            default -> null;
+        };
 
-        return null;
+    }
+
+    private int extractSpidLevel(String value) {
+        return switch (value) {
+            case "https://www.spid.gov.it/SpidL1" -> 1;
+            case "https://www.spid.gov.it/SpidL2" -> 2;
+            case "https://www.spid.gov.it/SpidL3" -> 3;
+            default -> 0;
+        };
     }
 
     private Element getDocumentElement(Element assertionElement, String subject) {
@@ -548,5 +577,88 @@ public class SpidSAMLEndpointHelper {
         }
 
         return false;
+    }
+
+    public String checkSpidStatus(ResponseType responseType) {
+        if (!isSuccessfulSamlResponse(responseType)) {
+            // Translate SPID error codes to meaningful messages
+            boolean isSpidFault = responseType.getStatus() != null && responseType.getStatus().getStatusMessage() != null && responseType.getStatus().getStatusMessage().startsWith("ErrorCode nr");
+            if (isSpidFault) {
+                return "SpidFault_" + responseType.getStatus().getStatusMessage().replace(' ', '_');
+            } else {
+                return responseType.getStatus() == null ? Messages.IDENTITY_PROVIDER_UNEXPECTED_ERROR : responseType.getStatus().getStatusMessage();
+            }
+        }
+        return null;
+    }
+
+    private boolean isSuccessfulSamlResponse(ResponseType responseType) {
+        return responseType != null
+                && responseType.getStatus() != null
+                && responseType.getStatus().getStatusCode() != null
+                && responseType.getStatus().getStatusCode().getValue() != null
+                && Objects.equals(responseType.getStatus().getStatusCode().getValue().toString(), JBossSAMLURIConstants.STATUS_SUCCESS.get());
+    }
+
+    // Validate InResponseTo attribute: must match the generated request ID
+    public boolean validateInResponseToAttribute(ResponseType responseType, String expectedRequestId) {
+
+        // If we are not expecting a request ID, don't bother
+        if (expectedRequestId == null || expectedRequestId.isEmpty())
+            return true;
+
+        // We are expecting a request ID so we are in SP-initiated login, attribute InResponseTo must be present
+        if (responseType.getInResponseTo() == null) {
+            logger.error("Response Validation Error: InResponseTo attribute was expected but not present in received response");
+            return false;
+        }
+
+        // Attribute is present, proceed with validation
+        // 1) Attribute Response > InResponseTo must not be empty
+        String responseInResponseToValue = responseType.getInResponseTo();
+        if (responseInResponseToValue.isEmpty()) {
+            logger.error("Response Validation Error: InResponseTo attribute was expected but it is empty in received response");
+            return false;
+        }
+
+        // 2) Attribute Response > InResponseTo must match request ID
+        if (!responseInResponseToValue.equals(expectedRequestId)) {
+            logger.error("Response Validation Error: received InResponseTo attribute does not match the expected request ID");
+            return false;
+        }
+
+        // If present, Assertion > Subject > Confirmation > SubjectConfirmationData > InResponseTo must also be validated
+        if (responseType.getAssertions().isEmpty())
+            return true;
+
+        SubjectType subjectElement = responseType.getAssertions().get(0).getAssertion().getSubject();
+        if (subjectElement != null) {
+            if (subjectElement.getConfirmation() != null && !subjectElement.getConfirmation().isEmpty()) {
+                SubjectConfirmationType subjectConfirmationElement = subjectElement.getConfirmation().get(0);
+
+                if (subjectConfirmationElement != null) {
+                    SubjectConfirmationDataType subjectConfirmationDataElement = subjectConfirmationElement.getSubjectConfirmationData();
+
+                    if (subjectConfirmationDataElement != null) {
+                        if (subjectConfirmationDataElement.getInResponseTo() != null) {
+                            // 3) Assertion > Subject > Confirmation > SubjectConfirmationData > InResponseTo is empty
+                            String subjectConfirmationDataInResponseToValue = subjectConfirmationDataElement.getInResponseTo();
+                            if (subjectConfirmationDataInResponseToValue.isEmpty()) {
+                                logger.error("Response Validation Error: SubjectConfirmationData InResponseTo attribute was expected but it is empty in received response");
+                                return false;
+                            }
+
+                            // 4) Assertion > Subject > Confirmation > SubjectConfirmationData > InResponseTo does not match request ID
+                            if (!subjectConfirmationDataInResponseToValue.equals(expectedRequestId)) {
+                                logger.error("Response Validation Error: received SubjectConfirmationData InResponseTo attribute does not match the expected request ID");
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 }
