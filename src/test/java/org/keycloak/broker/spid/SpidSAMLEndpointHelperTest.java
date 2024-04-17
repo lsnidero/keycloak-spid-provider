@@ -3,6 +3,7 @@ package org.keycloak.broker.spid;
 import nl.altindag.log.LogCaptor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -132,6 +133,7 @@ class SpidSAMLEndpointHelperTest {
     }
 
     @Test
+    @Disabled("Not checked by new AGID rules")
     void raiseSpidSamlCheck110() throws DatatypeConfigurationException {
         // Given
         String expectedError = "SpidSamlCheck_110";
@@ -149,7 +151,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck17() throws DatatypeConfigurationException {
         // Given
-        String expectedError = "SpidSamlCheck_nr17";
+        String expectedError = "SpidSamlCheck_17";
 
         Element samlResponse = samlResponseElement();
         samlResponse.removeAttribute("InResponseTo");
@@ -164,7 +166,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck16() throws DatatypeConfigurationException {
         // Given
-        String expectedError = "SpidSamlCheck_nr16";
+        String expectedError = "SpidSamlCheck_16";
 
         Element samlResponse = samlResponseElement();
         samlResponse.setAttribute("InResponseTo", "");
@@ -179,7 +181,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck18() throws DatatypeConfigurationException {
         // Given
-        String expectedError = "SpidSamlCheck_nr18";
+        String expectedError = "SpidSamlCheck_18";
 
         // When
         String actualError = DefaultHelper().verifySpidResponse(samlResponseElement(), null, "not-expected-in-response-to", CompleteResponseType(), "2024-04-10T09:22:28.000Z", null);
@@ -371,6 +373,7 @@ class SpidSAMLEndpointHelperTest {
     }
 
     @Test
+    @Disabled("Not checked by new AGID rules")
     void raiseSpidSamlCheck110FromAssertion() throws DatatypeConfigurationException {
         // Given
         String expectedError = "SpidSamlCheck_110";
@@ -390,7 +393,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck42() throws DatatypeConfigurationException {
         // Given
-        String expectedError = "SpidSamlCheck_nr42";
+        String expectedError = "SpidSamlCheck_42";
 
         Element samlAssertion = samlAssertion();
         Element subject = DocumentUtil.getChildElement(samlAssertion, new QName("Subject"));
@@ -406,7 +409,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck41() throws DatatypeConfigurationException {
         // Given
-        String expectedError = "SpidSamlCheck_nr41";
+        String expectedError = "SpidSamlCheck_41";
 
         Element samlAssertion = samlAssertion();
         // Remove Subject
@@ -527,7 +530,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck52() throws DatatypeConfigurationException {
         // Given
-        String expectedError = "SpidSamlCheck_nr52";
+        String expectedError = "SpidSamlCheck_52";
 
         Element samlAssertion = samlAssertion();
 
@@ -550,7 +553,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck51() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
         // Given
-        String expectedError = "SpidSamlCheck_nr51";
+        String expectedError = "SpidSamlCheck_51";
 
         Element samlAssertion = samlAssertion();
 
@@ -571,7 +574,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck53() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
         // Given
-        String expectedError = "SpidSamlCheck_nr53";
+        String expectedError = "SpidSamlCheck_53";
 
         Element samlAssertion = samlAssertion();
 
@@ -591,7 +594,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck54() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
         // Given
-        String expectedError = "SpidSamlCheck_nr54";
+        String expectedError = "SpidSamlCheck_54";
 
         Element samlAssertion = samlAssertion();
 
@@ -610,7 +613,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck55() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
         // Given
-        String expectedError = "SpidSamlCheck_nr55";
+        String expectedError = "SpidSamlCheck_55";
 
         Element samlAssertion = samlAssertion();
 
@@ -630,7 +633,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck56() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
         // Given
-        String expectedError = "SpidSamlCheck_nr56";
+        String expectedError = "SpidSamlCheck_56";
 
         Element samlAssertion = samlAssertion();
 
@@ -651,7 +654,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck58() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
         // Given
-        String expectedError = "SpidSamlCheck_nr58";
+        String expectedError = "SpidSamlCheck_58";
 
         Element samlAssertion = samlAssertion();
 
@@ -692,7 +695,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck57() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
         // Given
-        String expectedError = "SpidSamlCheck_nr57";
+        String expectedError = "SpidSamlCheck_57";
 
         Element samlAssertion = samlAssertion();
 
@@ -712,7 +715,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck61() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
         // Given
-        String expectedError = "SpidSamlCheck_nr61";
+        String expectedError = "SpidSamlCheck_61";
 
         Element samlAssertion = samlAssertion();
 
@@ -733,7 +736,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck60() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
         // Given
-        String expectedError = "SpidSamlCheck_nr60";
+        String expectedError = "SpidSamlCheck_60";
 
         Element samlAssertion = samlAssertion();
 
@@ -753,7 +756,7 @@ class SpidSAMLEndpointHelperTest {
     @Test
     void raiseSpidSamlCheck62() throws DatatypeConfigurationException, ConfigurationException, ProcessingException {
         // Given
-        String expectedError = "SpidSamlCheck_nr62";
+        String expectedError = "SpidSamlCheck_62";
 
         Element samlAssertion = samlAssertion();
 
@@ -1595,6 +1598,27 @@ class SpidSAMLEndpointHelperTest {
         // Then
         assertAll("Validation error", () -> assertFalse(actual), () -> assertThat(logCaptor.getErrorLogs()).containsExactly("Response Validation Error: received SubjectConfirmationData InResponseTo attribute does not match the expected request ID"));
 
+    }
+
+    @Test
+    void raiseSpidSamlCheck23NoStatus() {
+        //Given
+        String expectedError = "SpidSamlCheck_23";
+        // When
+        String actualError = DefaultHelper().checkSpidStatus(EmptyResponseType());
+        // Then
+        assertEquals(expectedError, actualError);
+    }
+
+    @Test
+    void raiseSpidSamlCheck32() {
+        //Given
+        String expectedError = "SpidSamlCheck_32";
+
+        // When
+        String actualError = DefaultHelper().checkAssertions(EmptyResponseType());
+        // Then
+        assertEquals(expectedError, actualError);
     }
 
 }

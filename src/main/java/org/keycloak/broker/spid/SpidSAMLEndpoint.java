@@ -388,9 +388,9 @@ public class SpidSAMLEndpoint {
                 if (checkSpidStatus != null){
                     return callback.error(checkSpidStatus);
                 }
-
-                if (responseType.getAssertions() == null || responseType.getAssertions().isEmpty()) {
-                    return callback.error(Messages.IDENTITY_PROVIDER_UNEXPECTED_ERROR);
+                String checkAssertions = helper.checkAssertions(responseType);
+                if (checkAssertions != null) {
+                    return callback.error(checkAssertions);
                 }
 
                 boolean assertionIsEncrypted = AssertionUtil.isAssertionEncrypted(responseType);

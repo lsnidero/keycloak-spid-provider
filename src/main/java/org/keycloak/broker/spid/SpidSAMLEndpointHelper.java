@@ -111,10 +111,11 @@ public class SpidSAMLEndpointHelper {
                 return "SpidSamlCheck_15";
             }
 
-            //110 IssueInstant must not have milliseconds
+            //110 IssueInstant must not have milliseconds, this is not an error anymore https://www.spid.gov.it/wp-content/uploads/2021/07/SPID_QAD.pdf
             int responseIssueInstantMillisecond = responseIssueInstant.getMillisecond();
             if (responseIssueInstantMillisecond > 0) {
-                return "SpidSamlCheck_110";
+                logger.debug("responseIssueInstant has milliseconds, SpidSamlCheck_110");
+                //return "SpidSamlCheck_110";
             }
 
 
@@ -128,18 +129,18 @@ public class SpidSAMLEndpointHelper {
 
         // 17: Response > InResponseTo missing
         if (!documentElement.hasAttribute("InResponseTo")) {
-            return "SpidSamlCheck_nr17";
+            return "SpidSamlCheck_17";
         }
 
         // 16: Response > InResponseTo empty
         String responseInResponseToValue = documentElement.getAttribute("InResponseTo");
         if (responseInResponseToValue.isEmpty()) {
-            return "SpidSamlCheck_nr16";
+            return "SpidSamlCheck_16";
         }
 
         // 18: Response > InResponseTo does not match request ID
         if (!responseInResponseToValue.equals(expectedRequestId)) {
-            return "SpidSamlCheck_nr18";
+            return "SpidSamlCheck_18";
         }
 
         //22 Unspecified Element Status
@@ -235,10 +236,11 @@ public class SpidSAMLEndpointHelper {
 
                 }
 
-                //110 Assertion IssueInstant with milliseconds
+                //110 Assertion IssueInstant with milliseconds, this is not an error anymore https://www.spid.gov.it/wp-content/uploads/2021/07/SPID_QAD.pdf
                 int assertionIssueInstantXMLMillisecond = assertionIssueInstantXML.getMillisecond();
                 if (assertionIssueInstantXMLMillisecond > 0) {
-                    return "SpidSamlCheck_110";
+                    logger.debug("responseIssueInstant (in assertion) has milliseconds, SpidSamlCheck_110");
+                    //return "SpidSamlCheck_110";
                 }
 
             } catch (DatatypeConfigurationException e) {
@@ -250,12 +252,12 @@ public class SpidSAMLEndpointHelper {
         // 42: Assertion > Subject missing
         Element subjectElement = getDocumentElement(assertionElement, "Subject");
         if (subjectElement == null) {
-            return "SpidSamlCheck_nr42";
+            return "SpidSamlCheck_42";
         }
 
         // 41: Assertion > Subject empty (Keycloak returns error earlier)
         if (!hasNamedChild(subjectElement)) {
-            return "SpidSamlCheck_nr41";
+            return "SpidSamlCheck_41";
         }
 
         //44 Assertion NameID missing
@@ -288,40 +290,40 @@ public class SpidSAMLEndpointHelper {
         Element subjectConfirmationElement = getDocumentElement(subjectElement, "SubjectConfirmation");
 
         if (subjectConfirmationElement == null) {
-            return "SpidSamlCheck_nr52";
+            return "SpidSamlCheck_52";
         }
 
         // 51: Assertion > Subject > Confirmation empty
         if (!hasNamedChild(subjectConfirmationElement)) {
-            return "SpidSamlCheck_nr51";
+            return "SpidSamlCheck_51";
         }
 
         // 53: Assertion > Subject > Confirmation > Method missing
         if (!subjectConfirmationElement.hasAttribute("Method")) {
-            return "SpidSamlCheck_nr53";
+            return "SpidSamlCheck_53";
         }
 
         // 54: Assertion > Subject > Confirmation > Method empty
         String subjectConfirmationMethodValue = subjectConfirmationElement.getAttribute("Method");
         if (subjectConfirmationMethodValue.isEmpty()) {
-            return "SpidSamlCheck_nr54";
+            return "SpidSamlCheck_54";
         }
 
         // 55: Assertion > Subject > Confirmation > Method is not JBossSAMLURIConstants.SUBJECT_CONFIRMATION_BEARER
         if (!subjectConfirmationMethodValue.equals(JBossSAMLURIConstants.SUBJECT_CONFIRMATION_BEARER.get())) {
-            return "SpidSamlCheck_nr55";
+            return "SpidSamlCheck_55";
         }
 
         // 56: Assertion > Subject > Confirmation > SubjectConfirmationData missing. Testing tool xml snippet same as 51
         Element subjectConfirmationDataElement = getDocumentElement(subjectConfirmationElement, "SubjectConfirmationData");
 
         if (subjectConfirmationDataElement == null) {
-            return "SpidSamlCheck_nr56";
+            return "SpidSamlCheck_56";
         }
 
         // 58: Assertion > Subject > Confirmation > SubjectConfirmationData > Recipient missing
         if (!subjectConfirmationDataElement.hasAttribute("Recipient")) {
-            return "SpidSamlCheck_nr58";
+            return "SpidSamlCheck_58";
         }
 
         // 59: Assertion > Subject > Confirmation > SubjectConfirmationData > different than AssertionConsumerServiceURL
@@ -333,23 +335,23 @@ public class SpidSAMLEndpointHelper {
         // 57: Assertion > Subject > Confirmation > SubjectConfirmationData > Recipient is empty
         String subjectConfirmationDataRecipientValue = subjectConfirmationDataElement.getAttribute("Recipient");
         if (subjectConfirmationDataRecipientValue.isEmpty()) {
-            return "SpidSamlCheck_nr57";
+            return "SpidSamlCheck_57";
         }
 
         // 61: Assertion > Subject > Confirmation > SubjectConfirmationData > InResponseTo missing
         if (!subjectConfirmationDataElement.hasAttribute("InResponseTo")) {
-            return "SpidSamlCheck_nr61";
+            return "SpidSamlCheck_61";
         }
 
         // 60: Assertion > Subject > Confirmation > SubjectConfirmationData > InResponseTo is empty
         String subjectConfirmationDataInResponseToValue = subjectConfirmationDataElement.getAttribute("InResponseTo");
         if (subjectConfirmationDataInResponseToValue.isEmpty()) {
-            return "SpidSamlCheck_nr60";
+            return "SpidSamlCheck_60";
         }
 
         // 62: Assertion > Subject > Confirmation > SubjectConfirmationData > InResponseTo does not match request ID
         if (!subjectConfirmationDataInResponseToValue.equals(expectedRequestId)) {
-            return "SpidSamlCheck_nr62";
+            return "SpidSamlCheck_62";
         }
 
         // 64:  Assertion > Subject > Confirmation > SubjectConfirmationData > NotOnOrAfter missing
@@ -586,7 +588,7 @@ public class SpidSAMLEndpointHelper {
             if (isSpidFault) {
                 return "SpidFault_" + responseType.getStatus().getStatusMessage().replace(' ', '_');
             } else {
-                return responseType.getStatus() == null ? Messages.IDENTITY_PROVIDER_UNEXPECTED_ERROR : responseType.getStatus().getStatusMessage();
+                return responseType.getStatus() == null ? "SpidSamlCheck_23" : responseType.getStatus().getStatusMessage();
             }
         }
         return null;
@@ -660,5 +662,9 @@ public class SpidSAMLEndpointHelper {
         }
 
         return true;
+    }
+
+    public String checkAssertions(ResponseType responseType) {
+        return responseType.getAssertions() == null || responseType.getAssertions().isEmpty() ? "SpidSamlCheck_32" : null;
     }
 }

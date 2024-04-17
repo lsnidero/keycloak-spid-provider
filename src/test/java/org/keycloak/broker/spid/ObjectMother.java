@@ -55,6 +55,14 @@ public class ObjectMother {
             return DocumentUtil.getElement(samlResponse(), new QName("Assertion"));
         }
 
+        public static ResponseType EmptyResponseType() {
+            try {
+                return new ResponseType("empty", DatatypeFactory.newInstance().newXMLGregorianCalendar());
+            } catch (DatatypeConfigurationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         public static ResponseType CompleteResponseType(String id, String responseTime) {
             try {
                 Document samlResponse = samlResponse();

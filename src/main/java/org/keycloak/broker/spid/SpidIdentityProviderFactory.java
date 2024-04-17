@@ -16,43 +16,27 @@
  */
 package org.keycloak.broker.spid;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.stream.Collectors;
-
-import javax.xml.namespace.QName;
-
 import org.jboss.logging.Logger;
 import org.keycloak.Config.Scope;
 import org.keycloak.broker.provider.AbstractIdentityProviderFactory;
 import org.keycloak.broker.saml.SAMLIdentityProviderFactory;
-import org.keycloak.broker.spid.metadata.SpidSpMetadataResourceProvider;
 import org.keycloak.dom.saml.v2.assertion.AttributeType;
-import org.keycloak.dom.saml.v2.metadata.EndpointType;
-import org.keycloak.dom.saml.v2.metadata.EntitiesDescriptorType;
-import org.keycloak.dom.saml.v2.metadata.EntityDescriptorType;
-import org.keycloak.dom.saml.v2.metadata.IDPSSODescriptorType;
-import org.keycloak.dom.saml.v2.metadata.KeyDescriptorType;
-import org.keycloak.dom.saml.v2.metadata.KeyTypes;
+import org.keycloak.dom.saml.v2.metadata.*;
 import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.provider.ConfiguredProvider;
 import org.keycloak.provider.ProviderConfigProperty;
-import org.keycloak.provider.ProviderConfigurationBuilder;
-import org.keycloak.provider.ServerInfoAwareProviderFactory;
-import org.keycloak.provider.ProviderConfigurationBuilder.ProviderConfigPropertyBuilder;
 import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.common.exceptions.ParsingException;
 import org.keycloak.saml.common.util.DocumentUtil;
 import org.keycloak.saml.processing.core.parsers.saml.SAMLParser;
 import org.keycloak.saml.validators.DestinationValidator;
 import org.w3c.dom.Element;
+
+import javax.xml.namespace.QName;
+import java.io.InputStream;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author Pedro Igor
@@ -189,7 +173,7 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
 
                     samlIdentityProviderConfig.setEnabledFromMetadata(entityType.getValidUntil() == null
                             || entityType.getValidUntil().toGregorianCalendar().getTime()
-                                    .after(new Date(System.currentTimeMillis())));
+                            .after(new Date(System.currentTimeMillis())));
 
                     // check for hide on login attribute
                     if (entityType.getExtensions() != null
@@ -207,6 +191,7 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
                 }
             }
         } catch (ParsingException pe) {
+            logger.error("Could not parse IdP SAML Metadata", pe);
             throw new RuntimeException("Could not parse IdP SAML Metadata", pe);
         }
 
@@ -221,30 +206,28 @@ public class SpidIdentityProviderFactory extends AbstractIdentityProviderFactory
     @Override
     public void init(Scope config) {
         super.init(config);
-
         this.destinationValidator = DestinationValidator.forProtocolMap(config.getArray("knownProtocols"));
     }
 
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
 
-        /*
-        final Properties props = new Properties();
-        try {
-            props.load(this.getClass().getResourceAsStream("/theme-resources/messages/admin-messages_en.properties"));
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+        ResourceBundle bundle = ResourceBundle.getBundle("provider-config.messages", currentLocale());
 
         return SpidIdentityProviderConfig.getConfigProperties()
                 .stream()
-                .map(p -> new ProviderConfigProperty(p.getName(), props.getProperty(p.getLabel()),
-                        props.getProperty(p.getHelpText()), p.getType(), p.getDefaultValue()))
+                .map(p -> new ProviderConfigProperty(p.getName(), bundle.getString(p.getLabel()),
+                        bundle.getString(p.getHelpText()), p.getType(), p.getDefaultValue()))
                 .collect(Collectors.toList());
     }
 
-         */
-        return  SpidIdentityProviderConfig.getConfigProperties();
+    /**
+     * This method returns the current locale.
+     * <strong>This method is a stub</strong>. We need to find a method to access to realm's current locale
+     * @return Locale, current locale
+     */
+    private Locale currentLocale(){
+        return  Locale.ITALIAN;
     }
 
 }

@@ -19,6 +19,7 @@ package org.keycloak.broker.spid;
 import static org.keycloak.common.util.UriUtils.checkUrl;
 
 import java.util.List;
+import java.util.spi.ResourceBundleProvider;
 
 import org.keycloak.common.enums.SslRequired;
 import org.keycloak.dom.saml.v2.protocol.AuthnContextComparisonType;
@@ -29,6 +30,7 @@ import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.provider.ProviderConfigurationBuilder;
 import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.common.util.XmlKeyInfoKeyNameTransformer;
+import org.keycloak.services.messages.Messages;
 
 /**
  * @author Pedro Igor

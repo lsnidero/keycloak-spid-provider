@@ -32,10 +32,4 @@ class SpidSpMetadataResourceProviderTest {
         assertInstanceOf(SpidSpMetadataResourceProvider.class, actual);
     }
 
-    @Test
-    @Disabled
-    void testGet() {
-
-    }
-
 }

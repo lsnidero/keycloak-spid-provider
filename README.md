@@ -10,18 +10,17 @@ This guide describe the steps required to successfully integrate a Keycloak envi
 - a recent Docker (or podman) installation
 - JDK 17
 - Git
-- Maven
 
 ## Install keycloak-spid-provider
 
 ### Build the jar file
 
-Clone this git repository and build it using Maven:
+Clone this git repository and build it using Maven Wrapper:
 
 ```shell
 $ git clone https://github.com/redhat-italy/keycloak-spid-provider.git
 $ cd keycloak-spid-provider
-$ mvn clean package
+$ ./mvnw clean package
 ```
 
 After a successful build you will find the `spid-provider.jar` jar file in the `target` directory.
@@ -112,9 +111,7 @@ The SPID custom provider has been correctly deployed and to verify that the modu
 
 When starting Keycloak with the `start-dev` command line, themes resources are **not** cached. 
 
-
-
-Then restart Keycloak and it will reload the new resources from the jar package.
+Then restart Keycloak, and it will reload the new resources from the jar package.
 Make sure you also cleared your browser caches (or use *incognito mode*) when verifying the correct deployment. After the first reload you can turn back on the caches and restart Keycloak again (if required).
 
 ## Install and configure the local SPID SAML Check docker environment
@@ -172,7 +169,7 @@ The test identity provider (SPID SAML Check) exposes two metadata:
 - one can be used to test the login/logout functionality and exposes the descriptor at [https://localhost:8080/demo/metadata.xml](https://localhost:8080/demo/metadata.xml). 
 - another one can be used to validate the service provider (Keycloak) metadata, requests and responses in order to pass all of the checks required by AGID. It exposes the descriptor at [https://localhost:8080/metadata.xml](https://localhost:8080/metadata.xml)
 
-You will need these endpoints later to setup the Keycloak Identity Provider configurations.
+You will need these endpoints later to set up the Keycloak Identity Provider configurations.
 
 To stop the SPID SAML Check running container just kill the `docker run...` command with *CTRL+C*.
 
@@ -220,6 +217,8 @@ If you need to configure all the current (May 2023) Italian SPID providers you c
 
 ### Identity Provider configuration
 
+This section does not work correctly in the web interface 
+
 **XXX** mi chiede client id e clien secret obbligatori (ho messo il nome del realm my-spid)
 
 1. Select the *Identity Providers* item from the left menu, click on *Add provider*, then select *SPID*;
@@ -241,7 +240,7 @@ Fill in the other fields as follows (leave the other fields as set by default).
 
 
 #### SAML Config section
-- **Service Provider Entity ID**: `http://<keycloak-base-url>/auth/realms/<your_realm_name>`
+- **Service Provider Entity ID**: `http://<keycloak-base-url>/realms/<your_realm_name>`
 - **Single Sign-On Service URL**: 
 - **NameID Policy Format**: set select box to `Transient`
 - **Principal Type**: set to `Attribute [Name]`

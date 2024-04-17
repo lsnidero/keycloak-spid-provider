@@ -1,6 +1,5 @@
 package org.keycloak.broker.spid;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.provider.ProviderConfigProperty;
@@ -191,14 +190,16 @@ class SpidIdentityProviderFactoryTest {
     }
 
     @Test
-    void testConfigPropertiesExistsInBundles() {
+    void testConfigPropertiesAreResolvedInBundles() {
         List<ProviderConfigProperty> actualConfigProperties = factory.getConfigProperties();
 
-        ResourceBundle bundle = ResourceBundle.getBundle("theme-resources.messages.messages", Locale.ENGLISH);
+        ResourceBundle bundle = ResourceBundle.getBundle("provider-config.messages", Locale.ITALIAN);
+        List<String> bundleValues = bundle.keySet().stream().map(bundle::getString).toList();
+
         actualConfigProperties.forEach(pcp ->
                 assertAll("Label and help text exists in bundle ",
-                        () -> assertTrue(bundle.containsKey(pcp.getLabel())),
-                        () -> assertTrue(bundle.containsKey(pcp.getHelpText()))
+                        () -> assertTrue(bundleValues.contains(pcp.getLabel())),
+                        () -> assertTrue(bundleValues.contains(pcp.getHelpText()))
 
                 ));
     }
