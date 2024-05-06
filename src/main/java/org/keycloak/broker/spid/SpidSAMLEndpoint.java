@@ -79,9 +79,6 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
-import static org.keycloak.utils.LockObjectsForModification.lockUserSessionsForModification;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -276,10 +273,9 @@ public class SpidSAMLEndpoint {
                 }
             }
 
-            if (requestAbstractType instanceof LogoutRequestType) {
+            if (requestAbstractType instanceof LogoutRequestType logout) {
                 logger.debug("** logout request");
                 event.event(EventType.LOGOUT);
-                LogoutRequestType logout = (LogoutRequestType) requestAbstractType;
                 return logoutRequest(logout, relayState);
 
             } else {
@@ -296,14 +292,14 @@ public class SpidSAMLEndpoint {
                 session.sessions().getUserSessionByBrokerUserIdStream(realm, brokerUserId)
                         .filter(userSession -> userSession.getState() != UserSessionModel.State.LOGGING_OUT &&
                                 userSession.getState() != UserSessionModel.State.LOGGED_OUT)
-                        .collect(Collectors.toList()) // collect to avoid concurrent modification as backchannelLogout removes the user sessions.
+                        .toList() // collect to avoid concurrent modification as backchannelLogout removes the user sessions.
                         .forEach(processLogout(ref));
                 request = ref.get();
 
             }  else {
                 for (String sessionIndex : request.getSessionIndex()) {
                     String brokerSessionId = config.getAlias()  + "." + sessionIndex;
-                    UserSessionModel userSession = lockUserSessionsForModification(session, () -> session.sessions().getUserSessionByBrokerSessionId(realm, brokerSessionId));
+                    UserSessionModel userSession = session.sessions().getUserSessionByBrokerSessionId(realm, brokerSessionId);
                     if (userSession != null) {
                         if (userSession.getState() == UserSessionModel.State.LOGGING_OUT || userSession.getState() == UserSessionModel.State.LOGGED_OUT) {
                             continue;
@@ -402,10 +398,10 @@ public class SpidSAMLEndpoint {
                     return ErrorPage.error(session, authSession, Response.Status.BAD_REQUEST, Messages.INVALID_REQUESTER);
                 }
 
-                Element assertionElement = null;
+                Element assertionElement;
 
                 if (assertionIsEncrypted) {
-                    // This methods writes the parsed and decrypted assertion back on the responseType parameter:
+                    // These methods write the parsed and decrypted assertion back on the responseType parameter:
                     assertionElement = AssertionUtil.decryptAssertion(responseType, keys.getPrivateKey());
                 } else {
                     /* We verify the assertion using original document to handle cases where the IdP
@@ -487,7 +483,7 @@ public class SpidSAMLEndpoint {
                 try {
                     String issuerURL = getEntityId(session.getContext().getUri(), realm);
                     cvb.addAllowedAudience(URI.create(issuerURL));
-                    // getDestination has been validated to match request URL already so it matches SAML endpoint
+                    // getDestination has been validated to match request URL already, so it matches SAML endpoint
                     if (responseType.getDestination() != null) {
                         cvb.addAllowedAudience(URI.create(responseType.getDestination()));
                     }
@@ -560,7 +556,7 @@ public class SpidSAMLEndpoint {
               .searchClientsByAttributes(realm, Collections.singletonMap(SamlProtocol.SAML_IDP_INITIATED_SSO_URL_NAME, clientUrlName), 0, 1)
               .findFirst();
 
-            if (! oClient.isPresent()) {
+            if (oClient.isEmpty()) {
                 event.error(Errors.CLIENT_NOT_FOUND);
                 Response response = ErrorPage.error(session, null, Response.Status.BAD_REQUEST, Messages.CLIENT_NOT_FOUND);
                 throw new WebApplicationException(response);
@@ -685,13 +681,6 @@ public class SpidSAMLEndpoint {
         }
     }
 
-    private Response getResponse(String invalidReason, String invalidSamlResponse, String errorDisplayed) {
-        event.event(EventType.IDENTITY_PROVIDER_RESPONSE);
-        event.detail(Details.REASON, invalidReason);
-        event.error(invalidSamlResponse);
-        return ErrorPage.error(session, null, Response.Status.BAD_REQUEST, errorDisplayed);
-    }
-
     protected class PostBinding extends Binding {
         @Override
         protected boolean containsUnencryptedSignature(SAMLDocumentHolder documentHolder) {
@@ -805,13 +794,15 @@ public class SpidSAMLEndpoint {
     private String expectedPrincipalType() {
         SamlPrincipalType principalType = config.getPrincipalType();
         switch (principalType) {
-            case SUBJECT:
+            case SUBJECT -> {
                 return principalType.name();
-            case ATTRIBUTE:
-            case FRIENDLY_ATTRIBUTE:
+            }
+            case ATTRIBUTE, FRIENDLY_ATTRIBUTE -> {
                 return String.format("%s(%s)", principalType.name(), config.getPrincipalAttribute());
-            default:
+            }
+            default -> {
                 return null;
+            }
         }
     }
 
