@@ -1,0 +1,10 @@
+{
+  "themes": [
+    {
+      "name": "keycloak-spid-only",
+      "types": [
+        "login"
+      ]
+    }
+  ]
+}

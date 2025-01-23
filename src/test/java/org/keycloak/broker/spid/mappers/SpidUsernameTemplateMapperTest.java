@@ -20,6 +20,8 @@ import org.keycloak.dom.saml.v2.assertion.AttributeStatementType;
 import org.keycloak.dom.saml.v2.assertion.AttributeType;
 import org.keycloak.dom.saml.v2.assertion.AttributeStatementType.ASTChoiceType;
 import org.keycloak.models.IdentityProviderMapperModel;
+import org.keycloak.models.IdentityProviderModel;
+import org.mockito.Mockito;
 
 class SpidUsernameTemplateMapperTest {
 
@@ -83,7 +85,9 @@ class SpidUsernameTemplateMapperTest {
 
         assertion.addStatement(attributeStatementType);
 
-        BrokeredIdentityContext context = new BrokeredIdentityContext("my-spid");
+        IdentityProviderModel idpConfig = Mockito.mock(IdentityProviderModel.class);
+
+        BrokeredIdentityContext context = new BrokeredIdentityContext("my-spid", idpConfig);
         context.getContextData().put("SAML_ASSERTION", assertion);
 
         return context;

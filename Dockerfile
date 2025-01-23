@@ -1,4 +1,4 @@
-FROM registry.redhat.io/rhbk/keycloak-rhel9:22 as builder
+FROM registry.redhat.io/rhbk/keycloak-rhel9:26.0-7 as builder
 
 # Enable health and metrics support
 ENV KC_HEALTH_ENABLED=true
@@ -12,11 +12,11 @@ WORKDIR /opt/keycloak
 RUN keytool -genkeypair -storepass password -storetype PKCS12 -keyalg RSA -keysize 2048 -dname "CN=server" -alias server -ext "SAN:c=DNS:localhost,IP:127.0.0.1" -keystore conf/server.keystore
 
 ADD --chown=keycloak:keycloak target/spid-provider.jar /opt/keycloak/providers/spid-provider.jar
-COPY --chown=keycloak:keycloak theme/keycloak-spid-only/ /opt/keycloak/themes/keycloak-spid-only/
+ADD --chown=keycloak:keycloak target/spid-provider-theme.jar /opt/keycloak/providers/spid-provider-theme.jar
 
 RUN /opt/keycloak/bin/kc.sh build
 
-FROM registry.redhat.io/rhbk/keycloak-rhel9:22
+FROM registry.redhat.io/rhbk/keycloak-rhel9:26.0-7
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
 
 EXPOSE 8080

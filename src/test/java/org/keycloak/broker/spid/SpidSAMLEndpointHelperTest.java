@@ -47,6 +47,13 @@ class SpidSAMLEndpointHelperTest {
         logCaptor.close();
     }
 
+    @Test
+    void testMin(){
+        int a = Integer.MAX_VALUE;
+        int b = 10;
+        System.out.println(Integer.MAX_VALUE + 10);
+    }
+
 
     @Test
     void raiseSpidSamlCheck02() throws DatatypeConfigurationException {

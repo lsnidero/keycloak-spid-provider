@@ -1,10 +1,12 @@
 package org.keycloak.broker.spid;
 
+import io.quarkus.test.Mock;
 import org.junit.jupiter.api.Test;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.services.DefaultKeycloakSession;
 import org.keycloak.services.DefaultKeycloakSessionFactory;
+import org.mockito.Mockito;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
@@ -21,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class SpidIdentityProviderFactoryTest {
 
     private final SpidIdentityProviderFactory factory = new SpidIdentityProviderFactory();
+
 
     @Test
     void testCreate() {
@@ -172,11 +175,12 @@ class SpidIdentityProviderFactoryTest {
     @Test
     void testParseConfig() throws IOException {
 
-        InputStream configStream = Files.newInputStream(Path.of("src/test/resources/real-metadata.xml"));
+        String config = Files.readString(Path.of("src/test/resources/real-metadata.xml"));
+
         InputStream expectedConfigStream = Files
                 .newInputStream(Path.of("src/test/resources/parsed-metadata.yaml"));
 
-        Map<String, String> actualConfig = factory.parseConfig(createSession(), configStream);
+        Map<String, String> actualConfig = factory.parseConfig(createSession(), config);
 
         Yaml parseExpected = new Yaml();
         Map<String, Object> expectedConfig = parseExpected.load(expectedConfigStream);
@@ -205,8 +209,6 @@ class SpidIdentityProviderFactoryTest {
     }
 
     private KeycloakSession createSession() {
-        KeycloakSession session = new DefaultKeycloakSession(new DefaultKeycloakSessionFactory());
-        session.setAttribute("TestAttribute", "only4Testing");
-        return session;
+        return Mockito.mock(KeycloakSession.class);
     }
 }

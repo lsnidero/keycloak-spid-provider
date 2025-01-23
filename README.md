@@ -1,14 +1,14 @@
 # keycloak-spid-provider
 
-Italian SPID authentication provider for Keycloak v.22.0+ (https://www.keycloak.org/)
+Italian SPID authentication provider for Keycloak v.26.0+ (https://www.keycloak.org/)
 
 This guide describe the steps required to successfully integrate a Keycloak environment with the SPID federation.
 
 ## Prerequisites
 
-- Keycloak full-working installation (version *22.0+*): the following instructions expect an environment variable named **$KC_HOME** to be set to the root directory of the Keycloak instance
+- Keycloak full-working installation (version *26.0+*): the following instructions expect an environment variable named **$KC_HOME** to be set to the root directory of the Keycloak instance
 - a recent Docker (or podman) installation
-- JDK 17
+- JDK 21
 - Git
 
 ## Install keycloak-spid-provider
@@ -23,16 +23,16 @@ $ cd keycloak-spid-provider
 $ ./mvnw clean package
 ```
 
-After a successful build you will find the `spid-provider.jar` jar file in the `target` directory.
+After a successful build you will find the `spid-provider.jar` and the `spid-provider-theme.jar` files in the `target` directory.
 
 ### Add provider to Keycloak
 
 Shutdown the Keycloak server (if running).
 
-Copy the jar file into Keycloak `providers` directory.  
+Copy the jar files into Keycloak `providers` directory.  
 
 ```shell
-$ cp target/spid-provider.jar $KC_HOME/providers/
+$ cp target/spid-provider*.jar $KC_HOME/providers/
 ```
 Link the provider to the current KeyCloak installation using the `build` option:
 
@@ -56,18 +56,12 @@ Current Configuration:
 
 ... content omitted ...
 
-	kc.provider.file.spid-provider.jar.last-modified =  1712329291489 (PersistedConfigSource)
+	kc.provider.file.spid-provider-theme.jar.last-modified =  1737619258222 (Persisted)
+	kc.provider.file.spid-provider.jar.last-modified =  1737619258222 (Persisted)
 
 ... content omitted ...
 
 ```
-
-Copy the custom theme (`keycloak-spid-only`) into Keycloak `themes` directory in order to enable the standard SPID login button in the login page.
-
-```shell
-$ cp -r theme/keycloak-spid-only $KC_HOME/themes
-```
-
 ## Start keycloak in dev mode 
 
 In order to start Keycloak server in `dev` mode you should execute this command :
@@ -80,13 +74,13 @@ The bind address is set to *0.0.0.0* to listen on any interface, in order to rel
 During Keycloak bootstrap you should see log entries like the following:
 
 ```
-Updating the configuration and installing your custom providers, if any. Please wait.
-2024-04-05 17:56:54,455 INFO  [io.quarkus.deployment.QuarkusAugmentor] (main) Quarkus augmentation completed in 5404ms
+pdating the configuration and installing your custom providers, if any. Please wait.
+2025-01-23 09:18:22,207 INFO  [io.qua.dep.QuarkusAugmentor] (main) Quarkus augmentation completed in 4820ms
 ... output omitted ...
-2024-04-05 17:56:59,559 INFO  [io.quarkus] (main) Keycloak 22.0.8.redhat-00001 on JVM (powered by Quarkus 3.2.9.Final-redhat-00002) started in 4.989s. Listening on: http://0.0.0.0:8080
-2024-04-05 17:56:59,560 INFO  [io.quarkus] (main) Profile dev activated. 
-2024-04-05 17:56:59,560 INFO  [io.quarkus] (main) Installed features: [agroal, cdi, hibernate-orm, jdbc-h2, jdbc-mariadb, jdbc-mssql, jdbc-mysql, jdbc-oracle, jdbc-postgresql, keycloak, micrometer, narayana-jta, reactive-routes, resteasy, resteasy-jackson, smallrye-context-propagation, smallrye-health, vertx]
-2024-04-05 17:56:59,563 WARN  [org.keycloak.quarkus.runtime.KeycloakMain] (main) Running the server in development mode. DO NOT use this configuration in production.
+2025-01-23 09:18:27,684 INFO  [io.quarkus] (main) Keycloak 26.0.8.redhat-00001 on JVM (powered by Quarkus 3.15.1.redhat-00005) started in 5.285s. Listening on: http://0.0.0.0:8080
+2025-01-23 09:18:27,684 INFO  [io.quarkus] (main) Profile dev activated. 
+2025-01-23 09:18:27,685 INFO  [io.quarkus] (main) Installed features: [agroal, cdi, hibernate-orm, jdbc-h2, keycloak, narayana-jta, opentelemetry, reactive-routes, rest, rest-jackson, smallrye-context-propagation, vertx]
+2025-01-23 09:18:27,688 WARN  [org.keycloak.quarkus.runtime.KeycloakMain] (main) Running the server in development mode. DO NOT use this configuration in production.
 
 ```
 
@@ -96,11 +90,9 @@ The SPID custom provider has been correctly deployed and to verify that the modu
 
 ## Repeated deployments and cache
 
-When starting Keycloak with the `start-dev` command line, themes resources are **not** cached. 
-
-Then restart Keycloak, and it will reload the new resources from the jar package.
-Make sure you also cleared your browser caches (or use *incognito mode*) when verifying the correct deployment. After the first reload you can turn back on the caches and restart Keycloak again (if required).
-
+When starting Keycloak with the `start-dev` command line, themes resources are **not** cached.
+When you restart Keycloak it will reload the new resources from the jar packages.
+In case of troubles about themese, make sure you also cleared your browser caches (or use *incognito mode*). 
 
 ## Install and configure the local SPID SAML Check docker environment
 
@@ -132,6 +124,26 @@ Visit https://github.com/italia/spid-saml-check or follow the README.md in the r
 The web server of the SPID SAML Check docker environment is now available at [https://localhost:8843](https://localhost:8080).
 
 ### Configure a custom host name inside the container
+
+Create custom network
+
+```shell
+podman network create spidnet
+podman run -it --replace --hostname spidsp --net spidnet --network-alias spidsp --name spid-saml-check-idp-demo -it -p 8443:8443 italia/spid-saml-check:1.10.4
+```
+
+Build application:
+```shell
+./mvnw clean package
+```
+
+```shell
+podman build -t rhbk-26 .
+```
+```shell
+podman run -it --replace --hostname spididp --net spidnet --network-alias spididp --name spididp -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin -p 8080:8080 localhost/rhbk-26:latest start-dev
+```
+
 
 Execute the following command in order to add a custom entry in the file hosts inside the container, in order to map it with the custom hostname `spidsp`. This should also be declared for the host machine running Keycloak.
 
@@ -200,7 +212,7 @@ or this using the graph view:
 
 ### Identity Provider configuration
 
-**WARNING** In the version 22 of Keycloak you can't use the web interface to configure the providers. For now, you need to use the script [configure-sh](spid-providers/configure.sh) to create all the Italian providers with the mapping information.
+**WARNING** In the version 22+ of Keycloak you can't use the web interface to configure the providers. For now, you need to use the script [configure-sh](spid-providers/configure.sh) to create all the Italian providers with the mapping information.
 
 Since is not possible from the UI to compile the following properties, you can skip this section and Jump directly on the [Generating and configuring Service Provider metadata](#generating-and-configuring-service-provider-metadata) section. 
 

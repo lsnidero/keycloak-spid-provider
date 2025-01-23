@@ -12,6 +12,7 @@ import org.keycloak.services.DefaultKeycloakSession;
 import org.keycloak.services.DefaultKeycloakSessionFactory;
 
 import jakarta.ws.rs.core.Response;
+import org.mockito.Mockito;
 
 class SpidSpMetadataResourceProviderTest {
 
@@ -19,10 +20,8 @@ class SpidSpMetadataResourceProviderTest {
 
     @BeforeEach
     void init() {
-        KeycloakSession session = new DefaultKeycloakSession(new DefaultKeycloakSessionFactory());
-        session.setAttribute("TestAttribute", "only4Testing");
-        //session.getContext().setRealm();
-        resourceProvider = new SpidSpMetadataResourceProvider(session);
+
+        resourceProvider = new SpidSpMetadataResourceProvider(Mockito.mock(KeycloakSession.class));
 
     }
 

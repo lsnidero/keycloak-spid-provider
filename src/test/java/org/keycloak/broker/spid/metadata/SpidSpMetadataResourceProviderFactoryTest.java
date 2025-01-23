@@ -8,10 +8,11 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.services.DefaultKeycloakSession;
 import org.keycloak.services.DefaultKeycloakSessionFactory;
 import org.keycloak.services.resource.RealmResourceProvider;
+import org.mockito.Mockito;
 
 class SpidSpMetadataResourceProviderFactoryTest {
 
-    private SpidSpMetadataResourceProviderFactory factory = new SpidSpMetadataResourceProviderFactory();
+    private final SpidSpMetadataResourceProviderFactory factory = new SpidSpMetadataResourceProviderFactory();
 
     @Test
     void testCreate() {
@@ -26,10 +27,6 @@ class SpidSpMetadataResourceProviderFactoryTest {
     }
 
     private KeycloakSession keycloakSession() {
-
-        KeycloakSession session = new DefaultKeycloakSession(new DefaultKeycloakSessionFactory());
-        session.setAttribute("TestAttribute", "only4Testing");
-
-        return session;
+        return Mockito.mock(KeycloakSession.class);
     }
 }
